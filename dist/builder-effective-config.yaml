@@ -1,0 +1,16 @@
+directories:
+  output: dist
+  buildResources: build
+appId: com.example.dsx-editor
+productName: DSX Editor
+files:
+  - filter:
+      - '**/*'
+      - '!node_modules/electron-builder/*'
+      - '!node_modules/electron-builder/**/*'
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+electronVersion: 28.3.3
