@@ -138,4 +138,8 @@ export class AudioAnalyzer {
     suspend() {
         return this.audioContext.suspend();
     }
+
+    static async decodeAudioData(audioContext, arrayBuffer) {
+        return await audioContext.decodeAudioData(arrayBuffer);
+    }
 }

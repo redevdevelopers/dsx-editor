@@ -40,6 +40,24 @@ export class Gameplay {
     stop() {
         this.running = false;
         this.app.ticker.remove(this._update, this);
+
+        // Clear all active notes and their sprites/rings
+        for (const noteData of this.activeNotes) {
+            if (noteData.sprite) noteData.sprite.destroy();
+            if (noteData.ring) noteData.ring.destroy();
+        }
+        this.activeNotes = []; // Ensure activeNotes is empty
+
+        // Remove any lingering hit effects or other dynamic elements from the stage
+        // Iterate backwards to safely remove elements
+        for (let i = this.stage.children.length - 1; i >= 0; i--) {
+            const child = this.stage.children[i];
+            // Only remove children that are not the static hex grid or glow layer
+            if (child !== this.hexGroup && child !== this.glowLayer) {
+                this.stage.removeChild(child);
+                child.destroy({ children: true }); // Destroy children of the removed container if any
+            }
+        }
     }
 
     showHit(zone) {
