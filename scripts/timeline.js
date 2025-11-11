@@ -37,6 +37,9 @@ export function Timeline(options) {
         this.isDraggingTimeline = false; // New flag for timeline dragging
         this.lastPointerX = 0; // New property for timeline dragging
 
+        this.isScrubbing = false;
+        this.wasPlayingBeforeScrub = false;
+
         this.waveformRenderer = new WaveformRenderer(this.app, this.container); // Instantiate WaveformRenderer
         if (this.audioBuffer) {
             this.waveformRenderer.loadAudioBuffer(this.audioBuffer); // Load audio buffer if provided
@@ -60,7 +63,10 @@ export function Timeline(options) {
         // Removed: this.app.view.addEventListener('pointerdown', this.onTimelinePointerDown); // New: for timeline dragging
         
         this.container.addChild(this.currentTimeIndicator); // Add to container after initialization
-            this.drawCurrentTimeIndicator(0);
+        this.currentTimeIndicator.interactive = true;
+        this.currentTimeIndicator.buttonMode = true;
+        this.currentTimeIndicator.on('pointerdown', this.onScrubStart.bind(this));
+        this.drawCurrentTimeIndicator(0);
         } // Closing brace for export function Timeline(options)
         
         Timeline.prototype.createGrid = function() {
@@ -76,15 +82,20 @@ export function Timeline(options) {
             // Draw vertical lines (beats)
             const msPerBeat = 60000 / this._chartData.getBPMAtTime(0); // Assuming constant BPM for grid
             const beatIntervalPx = msPerBeat * this.zoom;
-        
-            // Start drawing from the first beat visible on screen
-            const firstBeatTime = Math.floor(this.offset / msPerBeat) * msPerBeat;
-            let x = (firstBeatTime - this.offset) * this.zoom;
-        
-            while (x < screenWidth) {
-                if (x >= 0) {
+            const startTimeMs = this.offset / this.zoom;
+
+            // Find the time of the first beat
+            const firstVisibleBeatNumber = Math.floor(startTimeMs / msPerBeat);
+            const firstVisibleBeatTime = firstVisibleBeatNumber * msPerBeat;
+
+            // Calculate the screen position of the first beat
+            let x = (firstVisibleBeatTime * this.zoom) - this.offset;
+
+            // Draw all visible beats
+            while (x < this.app.screen.width) {
+                if (x >= 0) { // Ensure we don't draw off-screen to the left
                     this.gridGraphics.moveTo(x, 0);
-                    this.gridGraphics.lineTo(x, screenHeight);
+                    this.gridGraphics.lineTo(x, this.app.screen.height);
                 }
                 x += beatIntervalPx;
             }
@@ -249,6 +260,10 @@ Timeline.prototype.onNotePointerUp = function() {
 };
 
 Timeline.prototype.onClick = function(event) {
+    // Use a small timeout to prevent this from firing immediately after a scrub action ends.
+    // A better solution is a more robust state management, but this is a simple fix.
+    if (this.isScrubbing) return;
+
     console.log("Timeline background clicked. Selected Note before:", this.selectedNote);
     // If a note was clicked, onNoteClick would have stopped propagation
     // So if we reach here, it's a click on the timeline background
@@ -287,6 +302,56 @@ Timeline.prototype.onClick = function(event) {
         }
         console.log("New note added and selected:", newNote);
     }
+};
+
+Timeline.prototype.getTimeFromPointer = function(event) {
+    // event is a DOM PointerEvent on the canvas
+    return (event.offsetX + this.offset) / this.zoom;
+};
+
+Timeline.prototype.onScrubStart = function(event) {
+    // Stop propagation to prevent the timeline's onClick from firing
+    event.stopPropagation();
+
+    this.isScrubbing = true;
+
+    // Bind these methods to `this` ONCE and store them, so they can be removed.
+    this._boundScrubMove = this.onScrubMove.bind(this);
+    this._boundScrubEnd = this.onScrubEnd.bind(this);
+
+    this.app.view.addEventListener('pointermove', this._boundScrubMove);
+    this.app.view.addEventListener('pointerup', this._boundScrubEnd);
+    this.app.view.addEventListener('pointerupoutside', this._boundScrubEnd);
+
+    // The event from PIXI is a wrapper, we need the original DOM event for offsetX
+    if (event.data && event.data.originalEvent) {
+        this.onScrubMove(event.data.originalEvent);
+    }
+};
+
+Timeline.prototype.onScrubMove = function(event) {
+    if (!this.isScrubbing) return;
+
+    // Prevent default browser actions, like text selection, during drag
+    event.preventDefault();
+
+    const newTime = this.getTimeFromPointer(event);
+    if (this.audioPlayer && newTime >= 0 && newTime <= this.audioPlayer.duration * 1000) {
+        this.audioPlayer.currentTime = newTime / 1000;
+        this.drawCurrentTimeIndicator(newTime);
+    }
+};
+
+Timeline.prototype.onScrubEnd = function(event) {
+    if (!this.isScrubbing) return;
+    
+    event.preventDefault();
+
+    this.isScrubbing = false;
+
+    this.app.view.removeEventListener('pointermove', this._boundScrubMove);
+    this.app.view.removeEventListener('pointerup', this._boundScrubEnd);
+    this.app.view.removeEventListener('pointerupoutside', this._boundScrubEnd);
 };
 
 Timeline.prototype.onWheel = function(event) {
@@ -367,4 +432,7 @@ Timeline.prototype.drawCurrentTimeIndicator = function(currentTime) {
     const x = (currentTime * this.zoom) - this.offset;
     this.currentTimeIndicator.moveTo(x, 0);
     this.currentTimeIndicator.lineTo(x, this.app.screen.height);
+
+    // Create a larger, invisible hit area to make it easier to grab
+    this.currentTimeIndicator.hitArea = new PIXI.Rectangle(x - 5, 0, 10, this.app.screen.height);
 };

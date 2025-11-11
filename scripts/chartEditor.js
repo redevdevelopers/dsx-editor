@@ -3,11 +3,17 @@ import { Gameplay } from './gameplay.js';
 import { InputHandler } from './input.js';
 import { Timeline } from './timeline.js';
 import { CommandManager } from './commandManager.js';
-import { AudioAnalyzer } from './audioAnalyzer.js'; // Import AudioAnalyzer
+import { AudioAnalyzer } from './audioAnalyzer.js';
 
 export class ChartEditor {
-    constructor() {
-        this.element = document.createElement('div');
+    constructor({ editorCanvasContainer, timelineContainer, sidebarContainer, toolbarContainer }) {
+        this.containers = {
+            editor: editorCanvasContainer,
+            timeline: timelineContainer,
+            sidebar: sidebarContainer,
+            toolbar: toolbarContainer,
+        };
+
         this.input = new InputHandler();
         this.isRecording = false;
         this.startTime = 0;
@@ -19,15 +25,8 @@ export class ChartEditor {
                 creator: '',
                 difficulty: 1,
                 difficultyName: 'NORMAL',
-                bpm: {
-                    init: 120,
-                    min: 120,
-                    max: 120
-                },
-                preview: {
-                    start: 0,
-                    duration: 15000
-                },
+                bpm: { init: 120, min: 120, max: 120 },
+                preview: { start: 0, duration: 15000 },
                 version: '1.0.0'
             },
             timing: {
@@ -39,230 +38,213 @@ export class ChartEditor {
             notes: []
         };
         this._chartData = new ChartData(this._chart);
-        this.commandManager = new CommandManager(); // Initialize CommandManager
+        this.commandManager = new CommandManager();
+        this.selectedNoteType = 'regular';
+    }
 
-        this._render();
-        this._setupRecording();
+    init() {
+        this._renderToolbar();
+        this._renderSidebarPanels();
 
-        this.gameplay = new Gameplay({ parent: this.gameplayContainer, input: this.input });
+        this.audioPlayer = document.createElement('audio');
+        this.audioPlayer.id = 'audio-player';
+        document.body.appendChild(this.audioPlayer);
+
+        this.gameplay = new Gameplay({ parent: this.containers.editor, input: this.input });
         this.timeline = new Timeline({
             chartData: this._chartData,
-            parent: this.timelineContainer,
+            parent: this.containers.timeline,
             audioPlayer: this.audioPlayer,
             onNoteSelected: this._onNoteSelected.bind(this),
             gameplay: this.gameplay,
             selectedNoteType: this.selectedNoteType,
-            commandManager: this.commandManager, // Pass CommandManager
-            audioBuffer: null // Will be set when audio is loaded
+            commandManager: this.commandManager,
+            audioBuffer: null
         });
 
-        this.selectedNoteType = 'regular'; // Default selected note type
+        this._setupEventListeners();
+        this._setupRecording();
+
+        window.addEventListener('keydown', this._handleKeyDown.bind(this));
+        this.containers.editor.addEventListener('contextmenu', (event) => event.preventDefault());
+        this.containers.timeline.addEventListener('contextmenu', (event) => event.preventDefault());
     }
 
-    getElement() {
-        return this.element;
+    _renderToolbar() {
+        this.containers.toolbar.innerHTML = `
+            <button class="button ghost" id="import-btn">Import</button>
+            <button class="button ghost" id="export-btn">Export</button>
+            <div style="width: 20px;"></div>
+            <button class="icon-button" id="play-pause-btn" title="Play/Pause (Space)">
+                <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+                <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+            </button>
+            <button class="icon-button" id="record-btn" title="Record (F4)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"></circle></svg>
+            </button>
+            <div style="width: 20px;"></div>
+            <button class="icon-button" id="undo-btn" title="Undo (Ctrl+Z)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"></path></svg>
+            </button>
+            <button class="icon-button" id="redo-btn" title="Redo (Ctrl+Y)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.96 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"></path></svg>
+            </button>
+            <div style="width: 20px;"></div>
+            <button class="icon-button" id="zoom-in-btn" title="Zoom In (+)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path></svg>
+            </button>
+            <button class="icon-button" id="zoom-out-btn" title="Zoom Out (-)">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H5v-2h14v2z"></path></svg>
+            </button>
+        `;
     }
 
-    _render() {
-        this.element.innerHTML = `
-            <div class="editor-container">
-                <div class="editor-main-layout">
-                    <div class="editor-sidebar">
-                        <div class="editor-toolbar">
-                            <button class="button" id="record-btn">Record (F4)</button>
-                            <button class="button ghost" id="export-btn">Export Chart</button>
-                            <button class="button ghost" id="import-btn">Import Chart</button>
-                            <button class="button ghost" id="zoom-in-btn">+</button>
-                            <button class="button ghost" id="zoom-out-btn">-</button>
-                            <button class="button ghost" id="undo-btn">Undo</button>
-                            <button class="button ghost" id="redo-btn">Redo</button>
-                            <button class="button" id="simulate-btn">Simulate Play</button>
-                        </div>
-                        <div class="editor-settings panel">
-                            <h3>Editor Settings</h3>
-                            <div>
-                                <label for="bpm-input">BPM:</label>
-                                <input type="number" id="bpm-input" value="120">
-                            </div>
-                            <div>
-                                <label for="offset-input">Offset (ms):</label>
-                                <input type="number" id="offset-input" value="0">
-                            </div>
-                            <div>
-                                <label for="audio-input">Audio:</label>
-                                <input type="file" id="audio-input" accept=".mp3">
-                            </div>
-                            <div>
-                                <input type="checkbox" id="snap-toggle" checked>
-                                <label for="snap-toggle">Snap to Beat</label>
-                            </div>
-                            <div>
-                                <label for="snap-division">Snap Division:</label>
-                                <select id="snap-division">
-                                    <option value="1">1/1</option>
-                                    <option value="2">1/2</option>
-                                    <option value="4" selected>1/4</option>
-                                    <option value="8">1/8</option>
-                                    <option value="16">1/16</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="loop-start">Loop Start (ms):</label>
-                                <input type="number" id="loop-start" value="0">
-                            </div>
-                            <div>
-                                <label for="loop-end">Loop End (ms):</label>
-                                <input type="number" id="loop-end" value="0">
-                            </div>
-                            <button class="button ghost" id="toggle-loop-btn">Toggle Loop</button>
-                        </div>
-                        <div id="note-palette" class="panel">
-                            <h3>Note Palette</h3>
-                            <button class="button primary" id="note-type-regular" data-note-type="regular">Regular</button>
-                            <button class="button ghost" id="note-type-hold" data-note-type="hold">Hold</button>
-                            <button class="button ghost" id="note-type-chain" data-note-type="chain">Chain</button>
-                            <button class="button ghost" id="note-type-multi" data-note-type="multi">Multi</button>
-                        </div>
-                        <div id="note-properties-panel" class="panel" style="display: none;">
-                            <h3>Selected Note Properties</h3>
-                            <div>
-                                <label for="note-time">Time (ms):</label>
-                                <input type="number" id="note-time">
-                            </div>
-                            <div>
-                                <label for="note-zone">Zone:</label>
-                                <input type="number" id="note-zone" min="0" max="3">
-                            </div>
-                            <!-- Add more properties here as needed, e.g., duration for hold notes -->
-                        </div>
-                    </div>
-                    <div class="editor-content">
-                        <div id="timeline-container" style="width: 100%; height: 200px;"></div>
-                        <div id="gameplay-container">
-                            <div id="countdown"></div>
-                        </div>
-                        <audio id="audio-player"></audio>
-                    </div>
+    _renderSidebarPanels() {
+        this.containers.sidebar.innerHTML = `
+            <div class="panel">
+                <h3>Editor Settings</h3>
+                <label for="bpm-input">BPM:</label>
+                <input type="number" id="bpm-input" value="120">
+                <label for="offset-input">Offset (ms):</label>
+                <input type="number" id="offset-input" value="0">
+                <label for="audio-input">Audio:</label>
+                <input type="file" id="audio-input" accept=".mp3, .wav, .ogg">
+                <div>
+                    <input type="checkbox" id="snap-toggle" checked>
+                    <label for="snap-toggle">Snap to Beat</label>
                 </div>
+                <label for="snap-division">Snap Division:</label>
+                <select id="snap-division">
+                    <option value="1">1/1</option>
+                    <option value="2">1/2</option>
+                    <option value="4" selected>1/4</option>
+                    <option value="8">1/8</option>
+                    <option value="16">1/16</option>
+                </select>
+            </div>
+            <div class="panel">
+                <h3>Looping</h3>
+                <label for="loop-start">Loop Start (ms):</label>
+                <input type="number" id="loop-start" value="0">
+                <label for="loop-end">Loop End (ms):</label>
+                <input type="number" id="loop-end" value="0">
+                <button class="button ghost" id="toggle-loop-btn">Toggle Loop</button>
+            </div>
+            <div id="note-palette" class="panel">
+                <h3>Note Palette</h3>
+                <button class="button primary" id="note-type-regular" data-note-type="regular">Regular</button>
+                <button class="button ghost" id="note-type-hold" data-note-type="hold">Hold</button>
+                <button class="button ghost" id="note-type-chain" data-note-type="chain">Chain</button>
+                <button class="button ghost" id="note-type-multi" data-note-type="multi">Multi</button>
+            </div>
+            <div id="note-properties-panel" class="panel" style="opacity: 0; display: none; pointer-events: none;">
+                <h3>Selected Note</h3>
+                <label for="note-time">Time (ms):</label>
+                <input type="number" id="note-time">
+                <label for="note-zone">Zone:</label>
+                <input type="number" id="note-zone" min="0" max="3">
             </div>
         `;
+    }
 
-        this.gameplayContainer = this.element.querySelector('#gameplay-container');
-        this.timelineContainer = this.element.querySelector('#timeline-container');
-        this.recordBtn = this.element.querySelector('#record-btn');
-        this.exportBtn = this.element.querySelector('#export-btn');
-        this.bpmInput = this.element.querySelector('#bpm-input');
-        this.audioInput = this.element.querySelector('#audio-input');
-        this.audioPlayer = this.element.querySelector('#audio-player');
-        this.snapToggle = this.element.querySelector('#snap-toggle');
-        this.snapDivisionSelect = this.element.querySelector('#snap-division');
-                this.notePropertiesPanel = this.element.querySelector('#note-properties-panel');
-        this.noteTimeInput = this.element.querySelector('#note-time');
-        this.noteZoneInput = this.element.querySelector('#note-zone');
-        this.zoomInBtn = this.element.querySelector('#zoom-in-btn');
-        this.zoomOutBtn = this.element.querySelector('#zoom-out-btn');
-        this.undoBtn = this.element.querySelector('#undo-btn');
-        this.redoBtn = this.element.querySelector('#redo-btn');
-        this.offsetInput = this.element.querySelector('#offset-input');
-        this.importBtn = this.element.querySelector('#import-btn');
-        this.loopStartInput = this.element.querySelector('#loop-start');
-        this.loopEndInput = this.element.querySelector('#loop-end');
-        this.toggleLoopBtn = this.element.querySelector('#toggle-loop-btn');
-        this.simulateBtn = this.element.querySelector('#simulate-btn');
+    _setupEventListeners() {
+        this.recordBtn = this.containers.toolbar.querySelector('#record-btn');
+        this.exportBtn = this.containers.toolbar.querySelector('#export-btn');
+        this.importBtn = this.containers.toolbar.querySelector('#import-btn');
+        this.zoomInBtn = this.containers.toolbar.querySelector('#zoom-in-btn');
+        this.zoomOutBtn = this.containers.toolbar.querySelector('#zoom-out-btn');
+        this.undoBtn = this.containers.toolbar.querySelector('#undo-btn');
+        this.redoBtn = this.containers.toolbar.querySelector('#redo-btn');
+        this.playPauseBtn = this.containers.toolbar.querySelector('#play-pause-btn');
+        this.playIcon = this.containers.toolbar.querySelector('#play-icon');
+        this.pauseIcon = this.containers.toolbar.querySelector('#pause-icon');
 
-        this.noteTypeButtons = this.element.querySelectorAll('#note-palette .button');
-        this.noteTypeButtons.forEach(button => {
-            button.addEventListener('click', (e) => this._selectNoteType(e.target.dataset.noteType));
-        });
+        this.bpmInput = this.containers.sidebar.querySelector('#bpm-input');
+        this.offsetInput = this.containers.sidebar.querySelector('#offset-input');
+        this.audioInput = this.containers.sidebar.querySelector('#audio-input');
+        this.snapToggle = this.containers.sidebar.querySelector('#snap-toggle');
+        this.snapDivisionSelect = this.containers.sidebar.querySelector('#snap-division');
+        this.loopStartInput = this.containers.sidebar.querySelector('#loop-start');
+        this.loopEndInput = this.containers.sidebar.querySelector('#loop-end');
+        this.toggleLoopBtn = this.containers.sidebar.querySelector('#toggle-loop-btn');
+        this.notePropertiesPanel = this.containers.sidebar.querySelector('#note-properties-panel');
+        this.noteTimeInput = this.containers.sidebar.querySelector('#note-time');
+        this.noteZoneInput = this.containers.sidebar.querySelector('#note-zone');
+        this.noteTypeButtons = this.containers.sidebar.querySelectorAll('#note-palette .button');
 
-        this.recordBtn.addEventListener('click', () => this._toggleRecording());
-        this.exportBtn.addEventListener('click', () => this._exportChart());
-        this.importBtn.addEventListener('click', () => this._importChart());
-        this.bpmInput.addEventListener('change', () => this._updateBpm());
-        this.offsetInput.addEventListener('change', () => this._updateOffset());
-        this.audioInput.addEventListener('change', () => this._loadAudio());
-        this.snapToggle.addEventListener('change', () => this.timeline.snapEnabled = this.snapToggle.checked);
-        this.snapDivisionSelect.addEventListener('change', () => this.timeline.snapDivision = parseInt(this.snapDivisionSelect.value));
-        this.noteTimeInput.addEventListener('change', (e) => this._updateSelectedNoteProperty('time', parseFloat(e.target.value)));
-        this.noteZoneInput.addEventListener('change', (e) => this._updateSelectedNoteProperty('zone', parseInt(e.target.value)));
-        this.zoomInBtn.addEventListener('click', () => this.timeline.setZoom(this.timeline.zoom * 1.2));
-        this.zoomOutBtn.addEventListener('click', () => this.timeline.setZoom(this.timeline.zoom * 0.8));
-        this.undoBtn.addEventListener('click', () => {
+        const addListener = (el, event, handler) => {
+            if (el) {
+                el.addEventListener(event, handler);
+            } else {
+                console.error(`Fucking hell, element not found for event: ${event} on ${el}`);
+            }
+        };
+
+        addListener(this.recordBtn, 'click', () => this._toggleRecording());
+        addListener(this.exportBtn, 'click', () => this._exportChart());
+        addListener(this.importBtn, 'click', () => this._importChart());
+        addListener(this.bpmInput, 'change', () => this._updateBpm());
+        addListener(this.offsetInput, 'change', () => this._updateOffset());
+        addListener(this.audioInput, 'change', () => this._loadAudio());
+        addListener(this.snapToggle, 'change', () => { if(this.timeline) this.timeline.snapEnabled = this.snapToggle.checked });
+        addListener(this.snapDivisionSelect, 'change', () => { if(this.timeline) this.timeline.snapDivision = parseInt(this.snapDivisionSelect.value) });
+        addListener(this.noteTimeInput, 'change', (e) => this._updateSelectedNoteProperty('time', parseFloat(e.target.value)));
+        addListener(this.noteZoneInput, 'change', (e) => this._updateSelectedNoteProperty('zone', parseInt(e.target.value)));
+        addListener(this.zoomInBtn, 'click', () => this.timeline.setZoom(this.timeline.zoom * 1.2));
+        addListener(this.zoomOutBtn, 'click', () => this.timeline.setZoom(this.timeline.zoom * 0.8));
+        addListener(this.undoBtn, 'click', () => {
             this.commandManager.undo();
             this.timeline.update();
-            this._onNoteSelected(null); // Clear selection after undo/redo
+            this._onNoteSelected(null);
         });
-        this.redoBtn.addEventListener('click', () => {
+        addListener(this.redoBtn, 'click', () => {
             this.commandManager.redo();
             this.timeline.update();
-            this._onNoteSelected(null); // Clear selection after undo/redo
+            this._onNoteSelected(null);
         });
-        this.toggleLoopBtn.addEventListener('click', () => this._toggleLoop());
-        this.loopStartInput.addEventListener('change', (e) => this.loopStart = parseFloat(e.target.value));
-        this.loopEndInput.addEventListener('change', (e) => this.loopEnd = parseFloat(e.target.value));
-        this.simulateBtn.addEventListener('click', () => this._toggleSimulation());
+        addListener(this.toggleLoopBtn, 'click', () => this._toggleLoop());
+        addListener(this.loopStartInput, 'change', (e) => this.loopStart = parseFloat(e.target.value));
+        addListener(this.loopEndInput, 'change', (e) => this.loopEnd = parseFloat(e.target.value));
+        addListener(this.playPauseBtn, 'click', () => this._toggleSimulation());
+
+        this.noteTypeButtons.forEach(button => {
+            addListener(button, 'click', (e) => this._selectNoteType(e.target.dataset.noteType));
+        });
 
         this.isLooping = false;
         this.loopStart = 0;
         this.loopEnd = 0;
         this.isSimulating = false;
 
-        this.audioPlayer.addEventListener('timeupdate', () => {
+        addListener(this.audioPlayer, 'timeupdate', () => {
             if (this.isLooping && this.audioPlayer.currentTime * 1000 >= this.loopEnd) {
                 this.audioPlayer.currentTime = this.loopStart / 1000;
             }
-        });
-
-        window.addEventListener('keydown', this._handleKeyDown.bind(this));
-
-        // Disable right-click context menu for the entire editor element
-        this.element.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
+            if (this.audioPlayer.ended && this.isSimulating) {
+                this._toggleSimulation();
+            }
         });
     }
 
     _handleKeyDown(e) {
-        // Prevent default browser shortcuts for common keys
-        if ([' ', 'Backspace', 'Delete', 'z', 'y', 's', 'l', '+', '-'].includes(e.key)) {
+        if ([' ', 'Backspace', 'Delete', 'z', 'y', 's', 'l', '+', '-'].includes(e.key) && document.activeElement.tagName !== 'INPUT') {
             e.preventDefault();
         }
 
         switch (e.key) {
-            case 'z': // Ctrl+Z for undo
-                if (e.ctrlKey) {
-                    this.commandManager.undo();
-                    this.timeline.update();
-                    this._onNoteSelected(null);
-                }
-                break;
-            case 'y': // Ctrl+Y for redo
-                if (e.ctrlKey) {
-                    this.commandManager.redo();
-                    this.timeline.update();
-                    this._onNoteSelected(null);
-                }
-                break;
-            case 's': // Toggle snap
-                this.snapToggle.checked = !this.snapToggle.checked;
-                this.timeline.snapEnabled = this.snapToggle.checked;
-                break;
-            case 'l': // Toggle loop
-                this._toggleLoop();
-                break;
-            case '+': // Zoom In
-                this.timeline.setZoom(this.timeline.zoom * 1.2);
-                break;
-            case '-': // Zoom Out
-                this.timeline.setZoom(this.timeline.zoom * 0.8);
-                break;
-            // The Timeline class handles note deletion directly.
-            // No need for duplicate logic here.
-            // Add more shortcuts as needed
+            case ' ': this._toggleSimulation(); break;
+            case 'z': if (e.ctrlKey) { this.commandManager.undo(); this.timeline.update(); this._onNoteSelected(null); } break;
+            case 'y': if (e.ctrlKey) { this.commandManager.redo(); this.timeline.update(); this._onNoteSelected(null); } break;
+            case 's': this.snapToggle.checked = !this.snapToggle.checked; this.timeline.snapEnabled = this.snapToggle.checked; break;
+            case 'l': this._toggleLoop(); break;
+            case '+': this.timeline.setZoom(this.timeline.zoom * 1.2); break;
+            case '-': this.timeline.setZoom(this.timeline.zoom * 0.8); break;
         }
     }
 
     _selectNoteType(type) {
         this.selectedNoteType = type;
+        this.timeline.selectedNoteType = type;
         this.noteTypeButtons.forEach(button => {
             if (button.dataset.noteType === type) {
                 button.classList.add('primary');
@@ -278,41 +260,43 @@ export class ChartEditor {
         const offset = parseFloat(this.offsetInput.value);
         if (!isNaN(offset)) {
             this._chart.timing.offset = offset;
-            this._chartData.processTimingData(); // Recalculate beat map with new offset
-            this.timeline.update(); // Update timeline with new offset
+            this._chartData.processTimingData();
+            this.timeline.update();
         }
     }
 
     _toggleLoop() {
         this.isLooping = !this.isLooping;
+        this.toggleLoopBtn.classList.toggle('primary', this.isLooping);
+        this.toggleLoopBtn.classList.toggle('ghost', !this.isLooping);
         if (this.isLooping) {
-            this.toggleLoopBtn.classList.add('primary');
-            this.toggleLoopBtn.classList.remove('ghost');
             if (this.audioPlayer.currentTime * 1000 < this.loopStart || this.audioPlayer.currentTime * 1000 >= this.loopEnd) {
                 this.audioPlayer.currentTime = this.loopStart / 1000;
             }
             this.audioPlayer.play();
-        } else {
-            this.toggleLoopBtn.classList.remove('primary');
-            this.toggleLoopBtn.classList.add('ghost');
         }
     }
 
     _toggleSimulation() {
+        if (!this.audioPlayer.src || this.audioPlayer.src === '') {
+            alert("Load an audio file first, you dumbass.");
+            return;
+        }
         this.isSimulating = !this.isSimulating;
         if (this.isSimulating) {
-            this.simulateBtn.classList.add('primary');
-            this.simulateBtn.classList.remove('ghost');
-            this.audioPlayer.currentTime = 0;
-            this.audioPlayer.play();
-            // Reset simulatedHit flag for all notes
-            this._chartData.raw.notes.forEach(note => {
-                note.simulatedHit = false;
+            this.playIcon.style.display = 'none';
+            this.pauseIcon.style.display = 'block';
+            this.audioPlayer.play().catch(e => {
+                console.error("Fucking hell, audio could not play:", e);
+                this.isSimulating = false;
+                this.playIcon.style.display = 'block';
+                this.pauseIcon.style.display = 'none';
             });
+            this._chartData.raw.notes.forEach(note => note.simulatedHit = false);
             this._updateTimelineIndicator();
         } else {
-            this.simulateBtn.classList.remove('primary');
-            this.simulateBtn.classList.add('ghost');
+            this.playIcon.style.display = 'block';
+            this.pauseIcon.style.display = 'none';
             this.audioPlayer.pause();
             cancelAnimationFrame(this.timelineIndicatorRAF);
         }
@@ -321,18 +305,36 @@ export class ChartEditor {
     _onNoteSelected(note) {
         this.selectedNote = note;
         if (note) {
+            if (this.notePropertiesPanel.style.opacity === '1') {
+                this.noteTimeInput.value = note.time.toFixed(2);
+                this.noteZoneInput.value = note.zone;
+                return;
+            }
             this.notePropertiesPanel.style.display = 'block';
+            this.notePropertiesPanel.style.pointerEvents = 'auto';
             this.noteTimeInput.value = note.time.toFixed(2);
             this.noteZoneInput.value = note.zone;
+            anime({ targets: this.notePropertiesPanel, opacity: [0, 1], translateY: ['-10px', '0px'], duration: 300, easing: 'easeOutCubic' });
         } else {
-            this.notePropertiesPanel.style.display = 'none';
+            if (this.notePropertiesPanel.style.opacity === '0') return;
+            anime({
+                targets: this.notePropertiesPanel,
+                opacity: [1, 0],
+                translateY: ['0px', '-10px'],
+                duration: 300,
+                easing: 'easeInCubic',
+                complete: () => {
+                    this.notePropertiesPanel.style.display = 'none';
+                    this.notePropertiesPanel.style.pointerEvents = 'none';
+                }
+            });
         }
     }
 
     _updateSelectedNoteProperty(property, value) {
         if (this.selectedNote) {
             this.selectedNote[property] = value;
-            this._chartData.raw.notes.sort((a, b) => a.time - b.time); // Re-sort after time change
+            this._chartData.raw.notes.sort((a, b) => a.time - b.time);
             this.timeline.update();
         }
     }
@@ -344,8 +346,8 @@ export class ChartEditor {
             this._chart.meta.bpm.init = bpm;
             this._chart.meta.bpm.min = bpm;
             this._chart.meta.bpm.max = bpm;
-            this._chartData.processTimingData(); // Recalculate beat map
-            this.timeline.update(); // Update timeline with new BPM
+            this._chartData.processTimingData();
+            this.timeline.update();
         }
     }
 
@@ -353,15 +355,12 @@ export class ChartEditor {
         const file = this.audioInput.files[0];
         if (file) {
             this.audioPlayer.src = URL.createObjectURL(file);
-            this._chart.meta.title = file.name.replace('.mp3', '');
-
-            // Decode audio for waveform visualization
+            this._chart.meta.title = file.name.replace(/\.[^/.]+$/, "");
             const arrayBuffer = await file.arrayBuffer();
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuffer = await AudioAnalyzer.decodeAudioData(audioContext, arrayBuffer);
             this.timeline.waveformRenderer.loadAudioBuffer(audioBuffer);
-            console.assert(typeof this.timeline.createGrid === 'function', "ChartEditor: this.timeline.createGrid is not a function in _loadAudio!");
-            this.timeline.createGrid(); // Redraw grid to show waveform
+            this.timeline.createGrid();
         }
     }
 
@@ -377,9 +376,7 @@ export class ChartEditor {
     _toggleRecording() {
         this.isRecording = !this.isRecording;
         if (this.isRecording) {
-            this._startCountdown().then(() => {
-                this._startRecording();
-            });
+            this._startCountdown().then(() => this._startRecording());
         } else {
             this._stopRecording();
         }
@@ -387,16 +384,17 @@ export class ChartEditor {
 
     _startCountdown() {
         return new Promise(resolve => {
-            const countdownElement = this.element.querySelector('#countdown');
+            const countdownElement = this.containers.editor.querySelector('#countdown') || document.createElement('div');
+            if (!countdownElement.id) {
+                countdownElement.id = 'countdown';
+                this.containers.editor.appendChild(countdownElement);
+            }
             let count = 3;
-
             const countdownInterval = setInterval(() => {
                 if (count > 0) {
                     countdownElement.textContent = count;
                     countdownElement.style.opacity = 1;
-                    setTimeout(() => {
-                        countdownElement.style.opacity = 0;
-                    }, 800);
+                    setTimeout(() => countdownElement.style.opacity = 0, 800);
                     count--;
                 } else {
                     countdownElement.textContent = 'GO!';
@@ -412,9 +410,7 @@ export class ChartEditor {
     }
 
     _startRecording() {
-        this.recordBtn.textContent = 'Stop Recording (F4)';
         this.recordBtn.classList.add('primary');
-        this.recordBtn.classList.remove('ghost');
         this._chart.notes = [];
         this.startTime = performance.now();
         this.audioPlayer.currentTime = 0;
@@ -425,9 +421,7 @@ export class ChartEditor {
     }
 
     _stopRecording() {
-        this.recordBtn.textContent = 'Record (F4)';
         this.recordBtn.classList.remove('primary');
-        this.recordBtn.classList.add('ghost');
         this.audioPlayer.pause();
         this.gameplay.stop();
         cancelAnimationFrame(this.timelineIndicatorRAF);
@@ -435,46 +429,35 @@ export class ChartEditor {
     }
 
     _recordLoop() {
-        if (!this.isRecording) {
-            return;
-        }
-
+        if (!this.isRecording) return;
         const pressedZones = this.input.getPressedZones();
         const currentTime = performance.now() - this.startTime;
-
         for (const zone of pressedZones) {
             this._chart.notes.push({ time: currentTime, zone });
             this.gameplay.showHit(zone);
         }
         this.timeline.update();
-
         requestAnimationFrame(() => this._recordLoop());
     }
 
     _updateTimelineIndicator = () => {
         const currentTime = this.audioPlayer.currentTime * 1000;
         this.timeline.drawCurrentTimeIndicator(currentTime);
-
         if (this.isSimulating) {
-            // Simple hit window for simulation (e.g., +/- 100ms)
             const hitWindow = 100;
             this._chartData.raw.notes.forEach(note => {
-                if (note.time >= currentTime - hitWindow && note.time <= currentTime + hitWindow && !note.simulatedHit) {
+                if (Math.abs(note.time - currentTime) < hitWindow / 2 && !note.simulatedHit) {
                     this.gameplay.showHit(note.zone);
-                    note.simulatedHit = true; // Mark note as hit to avoid re-triggering
+                    note.simulatedHit = true;
                 }
             });
         }
-
         this.timelineIndicatorRAF = requestAnimationFrame(this._updateTimelineIndicator);
     }
 
     _exportChart() {
-        const chartData = {
-            ...this._chart,
-            keybinds: this.input.getMappings()
-        };
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chartData, null, 2));
+        const chartData = { ...this._chart, keybinds: this.input.getMappings() };
+        const dataStr = "data:text/json;charset=utf-t," + encodeURIComponent(JSON.stringify(chartData, null, 2));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
         downloadAnchorNode.setAttribute("download", `${this._chart.meta.title || 'untitled'}.json`);
@@ -494,17 +477,15 @@ export class ChartEditor {
                 reader.onload = (event) => {
                     try {
                         const importedChart = JSON.parse(event.target.result);
-                        // Basic validation
                         if (importedChart.meta && importedChart.timing && importedChart.notes) {
                             this._chart = importedChart;
                             this._chartData = new ChartData(this._chart);
-                            this.timeline._chartData = this._chartData; // Update timeline's chartData reference
+                            this.timeline._chartData = this._chartData;
                             this.timeline.drawNotes();
-                            console.assert(typeof this.timeline.createGrid === 'function', "ChartEditor: this.timeline.createGrid is not a function in _importChart!");
                             this.timeline.createGrid();
                             this.bpmInput.value = this._chart.meta.bpm.init;
                             this.offsetInput.value = this._chart.timing.offset;
-                            this._onNoteSelected(null); // Clear any selected note
+                            this._onNoteSelected(null);
                             console.log("Chart imported successfully!");
                         } else {
                             console.error("Invalid chart format.");

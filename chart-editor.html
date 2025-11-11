@@ -2,22 +2,33 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DreamSyncX Chart Editor</title>
     <link rel="stylesheet" href="styles/styles.css" />
-    <!-- PixiJS from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 </head>
 
 <body>
-    <div id="editor-root"></div>
-    <script type="module">
-        import { ChartEditor } from './scripts/chartEditor.js';
-        const root = document.getElementById('editor-root');
-        const editor = new ChartEditor();
-        root.appendChild(editor.getElement());
-    </script>
+    <div id="app-container">
+        <header id="app-header">
+            <h1>DreamSyncX Chart Editor Developer</h1>
+            <div id="editor-toolbar"></div>
+        </header>
+        <main id="main-content">
+            <div id="editor-canvas-container">
+                <!-- The PixiJS canvas for the gameplay view will go here -->
+            </div>
+            <div id="timeline-container">
+                <!-- The timeline canvas will go here -->
+            </div>
+        </main>
+        <aside id="sidebar">
+            <div id="sidebar-content"></div>
+        </aside>
+    </div>
+    <script type="module" src="/scripts/main.js"></script>
 </body>
 
 </html>
