@@ -28,7 +28,7 @@ function createWindow() {
                         dialog.showMessageBox({
                             type: 'info',
                             title: 'DreamSyncX Editor Version',
-                            message: `You are currently running DSX-Editor Build v3 (RC). BASED DSX V1.12-D. Compiled on 16th November 2025.`,
+                            message: `You are currently running DSX-Editor Build v3 (BETA). BASED DSX V1.12-D. Compiled on 16th November 2025.`,
                             buttons: ['OK']
                         });
                     }
