@@ -7,13 +7,21 @@ export class WaveformRenderer {
 
         this.audioBuffer = null;
         this.waveformPoints = []; // Stores downsampled waveform data
-        this.height = 100; // Fixed height for the waveform display
+        this.zoneHeight = 30; // Height of a single zone, consistent with Timeline
+        this.numZones = 6; // Assuming 6 zones (0-5)
+        this.waveformDisplayHeight = this.zoneHeight * this.numZones; // Total height for waveform display
+        this.color = '#00FF00'; // Default color
     }
 
     async loadAudioBuffer(audioBuffer) {
         this.audioBuffer = audioBuffer;
         this.waveformPoints = this.downsampleAudioBuffer(audioBuffer);
         this.draw(0, 1); // Redraw with new buffer, reset offset/zoom
+    }
+
+    setColor(color) {
+        this.color = color;
+        // The timeline will call draw() after this, so no need to redraw here.
     }
 
     downsampleAudioBuffer(audioBuffer, samples = 8000) {
@@ -40,7 +48,7 @@ export class WaveformRenderer {
             return;
         }
 
-        this.waveformGraphic.lineStyle(1, 0x00FF00, 0.7); // Green waveform, semi-transparent
+        this.waveformGraphic.lineStyle(1, this.color, 0.7); // Use dynamic color
 
         const totalDurationMs = this.audioBuffer.duration * 1000;
         const pixelsPerMs = zoom; // This is the zoom level from Timeline
@@ -48,14 +56,15 @@ export class WaveformRenderer {
 
         const startX = -offset; // Start drawing from this pixel offset
 
-        const centerY = this.app.screen.height / 2; // Center of the timeline view
-        const waveformHeight = this.height; // Use the fixed height for the waveform
+        // Center the waveform vertically within the total zone display height
+        const centerY = this.waveformDisplayHeight / 2;
+        const waveformRenderHeight = this.waveformDisplayHeight * 0.8; // Use 80% of the height to make peaks more visible
 
         this.waveformGraphic.moveTo(startX, centerY);
 
         for (let i = 0; i < this.waveformPoints.length; i++) {
             const x = startX + (i / this.waveformPoints.length) * waveformWidth;
-            const y = centerY - (this.waveformPoints[i] * waveformHeight / 2); // Scale amplitude to waveform height
+            const y = centerY - (this.waveformPoints[i] * waveformRenderHeight * 0.5); // Scale amplitude to waveform height
 
             // Draw mirrored for a fuller look
             this.waveformGraphic.lineTo(x, y);
@@ -65,7 +74,7 @@ export class WaveformRenderer {
         this.waveformGraphic.moveTo(startX, centerY);
         for (let i = 0; i < this.waveformPoints.length; i++) {
             const x = startX + (i / this.waveformPoints.length) * waveformWidth;
-            const y = centerY + (this.waveformPoints[i] * waveformHeight / 2);
+            const y = centerY + (this.waveformPoints[i] * waveformRenderHeight * 0.5);
             this.waveformGraphic.lineTo(x, y);
         }
     }

@@ -28,6 +28,11 @@ export class ChartData {
             throw new Error('Notes must be an array');
         }
 
+        // This validation was for markers as part of chart data.
+        // Since they are now an editor-only feature, this is removed.
+        // if (this.raw.markers && !Array.isArray(this.raw.markers)) {
+        //     throw new Error('Markers must be an array');
+        // }
         this.raw.notes.forEach((note, i) => {
             if (note.time === undefined) throw new Error(`Note ${i} missing time`);
             if (note.zone === undefined) throw new Error(`Note ${i} missing zone`);

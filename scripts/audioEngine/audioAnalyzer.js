@@ -98,15 +98,18 @@ export class AudioAnalyzer {
     }
 
     stop() {
+        console.log('AudioAnalyzer.stop() called.');
         if (this._mediaElement) {
-            try { this._mediaElement.pause(); } catch (e) { }
+            console.log('Stopping media element.');
+            try { this._mediaElement.pause(); } catch (e) { console.error('Error pausing media element:', e); }
             return;
         }
         if (this.source) {
+            console.log('Stopping buffer source.');
             try {
                 this.source.stop();
             } catch (e) {
-                // ignore if already stopped
+                console.error('Error stopping buffer source:', e);
             }
             this.source.started = false;
         }
@@ -139,7 +142,52 @@ export class AudioAnalyzer {
         return this.audioContext.suspend();
     }
 
-    static async decodeAudioData(audioContext, arrayBuffer) {
-        return await audioContext.decodeAudioData(arrayBuffer);
+    destroy() {
+        this.stop(); // Stop any playing audio
+
+        // Disconnect all nodes
+        if (this.source) {
+            try { this.source.disconnect(); } catch (e) { /* ignore */ }
+            this.source = null;
+        }
+        if (this._mediaSourceNode) {
+            try { this._mediaSourceNode.disconnect(); } catch (e) { /* ignore */ }
+            this._mediaSourceNode = null;
+        }
+        if (this.gainNode) {
+            try { this.gainNode.disconnect(); } catch (e) { /* ignore */ }
+            this.gainNode = null;
+        }
+        if (this.analyser) {
+            try { this.analyser.disconnect(); } catch (e) { /* ignore */ }
+            this.analyser = null;
+        }
+
+        // Close the audio context if it was created by this instance (and not shared)
+        // For now, assuming it might be shared, so only close if it's not the global one.
+        // A more robust solution would track if this instance *owns* the context.
+        // For simplicity, we'll just disconnect and nullify.
+        // If the audioContext is truly owned by this instance, it should be closed.
+        // For now, we'll assume it's shared and just disconnect.
+        // If it's not shared, uncomment the following:
+        // if (this.audioContext && typeof this.audioContext.close === 'function') {
+        //     this.audioContext.close();
+        // }
+        this.audioContext = null;
+
+        // Remove media element if it was created
+        if (this._mediaElement) {
+            try {
+                this._mediaElement.pause();
+                this._mediaElement.src = ''; // Clear src to release resources
+                this._mediaElement.load(); // Attempt to unload
+                this._mediaElement = null;
+            } catch (e) { /* ignore */ }
+        }
+
+        // Nullify other references
+        this.dataArray = null;
+        this.bufferLength = 0;
+        this.outputNode = null;
     }
 }

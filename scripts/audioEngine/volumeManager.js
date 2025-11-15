@@ -62,7 +62,7 @@ export class VolumeManager {
 
     setupControls() {
         // Mouse wheel control
-        window.addEventListener('wheel', (e) => {
+        this._onWheelHandler = (e) => {
             if (!this.wheelEnabled) return;
             e.preventDefault();
 
@@ -99,10 +99,11 @@ export class VolumeManager {
                     }
                 }, 300);
             }, 1000);
-        }, { passive: false });
+        };
+        window.addEventListener('wheel', this._onWheelHandler, { passive: false });
 
         // Key bindings for changing active control
-        window.addEventListener('keydown', (e) => {
+        this._onKeydownHandler = (e) => {
             switch (e.key.toLowerCase()) {
                 case 'm':
                     this.activeControl = 'master';
@@ -114,7 +115,8 @@ export class VolumeManager {
                     this.activeControl = 'effects';
                     break;
             }
-        });
+        };
+        window.addEventListener('keydown', this._onKeydownHandler);
     }
 
     setVolume(type, value) {
@@ -144,4 +146,34 @@ export class VolumeManager {
     }
 
     isWheelEnabled() { return !!this.wheelEnabled; }
+
+    destroy() {
+        // Remove event listeners
+        window.removeEventListener('wheel', this._onWheelHandler);
+        window.removeEventListener('keydown', this._onKeydownHandler);
+
+        // Remove DOM element
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+
+        // Clear any pending hide timeout
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+        }
+
+        // Nullify references
+        this.volumes = null;
+        this.onVolumeChange = null;
+        this.container = null;
+        this.masterBar = null;
+        this.masterText = null;
+        this.musicBar = null;
+        this.musicText = null;
+        this.effectsBar = null;
+        this.effectsText = null;
+        this._onWheelHandler = null;
+        this._onKeydownHandler = null;
+    }
 }

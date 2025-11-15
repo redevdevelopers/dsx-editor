@@ -1,5 +1,5 @@
 // Minimal remappable input handler
-import { soundManager } from './soundManager.js';
+import { soundManager } from './audioEngine/soundManager.js';
 
 export class InputHandler {
     constructor(state) {
@@ -31,7 +31,6 @@ export class InputHandler {
             const k = e.key;
             if (!this.pressedKeys.has(k)) {
                 this.keyDownBuffer.add(k);
-                soundManager.play('incoming');
             }
             this.pressedKeys.add(k);
             if (this.remapActive && this.remapResolve) {
@@ -61,7 +60,6 @@ export class InputHandler {
                     const pressed = !!(b && b.pressed);
                     const prev = !!this.gpButtonPrev[idx];
                     if (pressed && !prev) {
-                        soundManager.play('incoming');
                         this.gpButtonBuffer.add(String(idx));
                         if (this.remapActive && this.remapResolve) {
                             this.gpMap[String(idx)] = this.remapTarget;
@@ -98,4 +96,3 @@ export class InputHandler {
 
     resetBuffers() { this.keyDownBuffer.clear(); this.gpButtonBuffer.clear(); }
 }
-
