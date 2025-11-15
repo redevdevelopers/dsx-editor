@@ -1,16 +1,16 @@
 directories:
   output: dist
   buildResources: build
-appId: com.example.dsx-editor
-productName: DSX Editor
+appId: com.dreamsyncx.editor
+productName: DreamSyncX Chart Editor
 files:
   - filter:
       - '**/*'
-      - '!node_modules/electron-builder/*'
-      - '!node_modules/electron-builder/**/*'
+      - '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}'
 win:
-  target: nsis
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-electronVersion: 28.3.3
+  target:
+    - portable
+  icon: assets/icon/dsicon.ico
+  forceCodeSigning: false
+  signAndEditExecutable: false
+electronVersion: 31.7.7

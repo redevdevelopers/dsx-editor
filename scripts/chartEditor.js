@@ -775,48 +775,72 @@ export class ChartEditor {
         this.timelineIndicatorRAF = requestAnimationFrame(this._updateTimelineIndicator);
     }
 
-    _exportChart() {
+    async _exportChart() {
         const chartData = { ...this._chart, keybinds: this.input.getMappings() };
-        const dataStr = "data:text/json;charset=utf-t," + encodeURIComponent(JSON.stringify(chartData, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `${this._chart.meta.title || 'untitled'}.json`);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
+        const dataStr = JSON.stringify(chartData, null, 2);
+
+        // Use Electron's native save dialog if available
+        if (window.electronAPI) {
+            const result = await window.electronAPI.saveChart({
+                data: dataStr,
+                defaultPath: `${this._chart.meta.title || 'untitled'}.json`
+            });
+            if (result.success) {
+                console.log(`Chart saved to ${result.filePath}`);
+            }
+        } else {
+            // Fallback for web browser
+            const dataUri = "data:text/json;charset=utf-8," + encodeURIComponent(dataStr);
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataUri);
+            downloadAnchorNode.setAttribute("download", `${this._chart.meta.title || 'untitled'}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
     }
 
-    _importChart() {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.json';
-        fileInput.onchange = e => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const importedChart = JSON.parse(event.target.result);
-                        if (importedChart.meta && importedChart.timing && importedChart.notes) {
-                            this._chart = importedChart;
-                            this._chartData = new ChartData(this._chart);
-                            this.timeline._chartData = this._chartData;
-                            this.timeline.drawNotes();
-                            this.timeline.createGrid();
-                            this.bpmInput.value = this._chart.meta.bpm.init;
-                            this.offsetInput.value = this._chart.timing.offset;
-                            this._onNoteSelected(null);
-                            console.log("Chart imported successfully!");
-                        } else {
-                            console.error("Invalid chart format.");
-                        }
-                    } catch (error) {
-                        console.error("Error parsing chart JSON:", error);
-                    }
-                };
-                reader.readAsText(file);
+    async _importChart() {
+        // Use Electron's native open dialog if available
+        if (window.electronAPI) {
+            const result = await window.electronAPI.openChart();
+            if (result && result.content) {
+                this._processImportedChart(result.content);
             }
-        };
-        fileInput.click();
+        } else {
+            // Fallback for web browser
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.onchange = e => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => this._processImportedChart(event.target.result);
+                    reader.readAsText(file);
+                }
+            };
+            fileInput.click();
+        }
+    }
+
+    _processImportedChart(jsonContent) {
+        try {
+            const importedChart = JSON.parse(jsonContent);
+            if (importedChart.meta && importedChart.timing && importedChart.notes) {
+                this._chart = importedChart;
+                this._chartData = new ChartData(this._chart);
+                this.timeline._chartData = this._chartData;
+                this.timeline.update();
+                this.bpmInput.value = this._chart.meta.bpm.init;
+                this.offsetInput.value = this._chart.timing.offset;
+                this._onNoteSelected(null);
+                console.log("Chart imported successfully!");
+            } else {
+                console.error("Invalid chart format.");
+            }
+        } catch (error) {
+            console.error("Error parsing chart JSON:", error);
+        }
     }
 }
