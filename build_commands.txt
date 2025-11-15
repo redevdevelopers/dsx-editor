@@ -1,0 +1,14 @@
+# NPM Commands for DSX Editor
+
+## 1. Install Dependencies
+# Run this first to download all the necessary packages for the project.
+npm install
+
+## 2. Run in Development Mode
+# Use this to open the app locally for testing and development.
+npm startn
+
+## 3. Build the Installer
+# This command packages the application and creates the Windows installer (.exe).
+# The output will be in the /dist folder.
+npm run dist

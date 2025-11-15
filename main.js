@@ -18,6 +18,14 @@ function createWindow() {
 
     win.loadFile('index.html');
 
+    // Reload the window when entering or leaving full-screen mode
+    win.on('enter-full-screen', () => {
+        win.webContents.reload();
+    });
+    win.on('leave-full-screen', () => {
+        win.webContents.reload();
+    });
+
     const template = [
         {
             label: 'DreamSyncX Editor Version',
