@@ -1,0 +1,31 @@
+{
+  "name": "Monokai",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#272822",
+    "editor.foreground": "#f8f8f2",
+    "activityBar.background": "#1e1f1c",
+    "activityBar.foreground": "#f8f8f2",
+    "sideBar.background": "#1e1f1c",
+    "sideBar.foreground": "#f8f8f2",
+    "statusBar.background": "#1e1f1c",
+    "statusBar.foreground": "#f8f8f2",
+    "titleBar.activeBackground": "#1e1f1c",
+    "titleBar.activeForeground": "#f8f8f2",
+    "panel.background": "#1e1f1c",
+    "panel.border": "#3e3d32",
+    "terminal.background": "#272822",
+    "terminal.foreground": "#f8f8f2",
+    "editorWidget.background": "#1e1f1c",
+    "editorWidget.border": "#3e3d32",
+    "input.background": "#3e3d32",
+    "input.foreground": "#f8f8f2",
+    "input.border": "#75715e",
+    "button.background": "#a6e22e",
+    "button.foreground": "#272822",
+    "button.hoverBackground": "#66d9ef",
+    "list.activeSelectionBackground": "#3e3d32",
+    "list.activeSelectionForeground": "#f8f8f2",
+    "list.hoverBackground": "#3e3d3280"
+  }
+}

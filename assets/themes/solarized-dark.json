@@ -1,0 +1,31 @@
+{
+  "name": "Solarized Dark",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#002b36",
+    "editor.foreground": "#839496",
+    "activityBar.background": "#073642",
+    "activityBar.foreground": "#839496",
+    "sideBar.background": "#073642",
+    "sideBar.foreground": "#839496",
+    "statusBar.background": "#073642",
+    "statusBar.foreground": "#839496",
+    "titleBar.activeBackground": "#073642",
+    "titleBar.activeForeground": "#839496",
+    "panel.background": "#073642",
+    "panel.border": "#586e75",
+    "terminal.background": "#002b36",
+    "terminal.foreground": "#839496",
+    "editorWidget.background": "#073642",
+    "editorWidget.border": "#586e75",
+    "input.background": "#073642",
+    "input.foreground": "#839496",
+    "input.border": "#586e75",
+    "button.background": "#268bd2",
+    "button.foreground": "#fdf6e3",
+    "button.hoverBackground": "#2aa198",
+    "list.activeSelectionBackground": "#586e75",
+    "list.activeSelectionForeground": "#fdf6e3",
+    "list.hoverBackground": "#586e7580"
+  }
+}

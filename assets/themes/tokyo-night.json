@@ -1,0 +1,31 @@
+{
+  "name": "Tokyo Night",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#1a1b26",
+    "editor.foreground": "#a9b1d6",
+    "activityBar.background": "#16161e",
+    "activityBar.foreground": "#a9b1d6",
+    "sideBar.background": "#16161e",
+    "sideBar.foreground": "#a9b1d6",
+    "statusBar.background": "#16161e",
+    "statusBar.foreground": "#a9b1d6",
+    "titleBar.activeBackground": "#16161e",
+    "titleBar.activeForeground": "#a9b1d6",
+    "panel.background": "#16161e",
+    "panel.border": "#292e42",
+    "terminal.background": "#1a1b26",
+    "terminal.foreground": "#a9b1d6",
+    "editorWidget.background": "#16161e",
+    "editorWidget.border": "#292e42",
+    "input.background": "#1f2335",
+    "input.foreground": "#a9b1d6",
+    "input.border": "#414868",
+    "button.background": "#7aa2f7",
+    "button.foreground": "#1a1b26",
+    "button.hoverBackground": "#bb9af7",
+    "list.activeSelectionBackground": "#292e42",
+    "list.activeSelectionForeground": "#a9b1d6",
+    "list.hoverBackground": "#292e4280"
+  }
+}

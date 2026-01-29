@@ -77,10 +77,15 @@ export class InputHandler {
     getPressedZones() {
         const zones = new Set();
         for (const k of this.keyDownBuffer) {
-            const key = k.toLowerCase(); if (this.keyMap.hasOwnProperty(key)) zones.add(this.keyMap[key]);
+            if (!k) continue; // Skip undefined/null keys
+            const key = k.toLowerCase();
+            if (this.keyMap.hasOwnProperty(key)) zones.add(this.keyMap[key]);
         }
-        for (const b of this.gpButtonBuffer) { if (this.gpMap.hasOwnProperty(b)) zones.add(this.gpMap[b]); }
-        this.keyDownBuffer.clear(); this.gpButtonBuffer.clear();
+        for (const b of this.gpButtonBuffer) {
+            if (this.gpMap.hasOwnProperty(b)) zones.add(this.gpMap[b]);
+        }
+        this.keyDownBuffer.clear();
+        this.gpButtonBuffer.clear();
         return Array.from(zones);
     }
 

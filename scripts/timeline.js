@@ -6,27 +6,48 @@ export function Timeline(options) {
     this.audioPlayer = options.audioPlayer;
     this.onMarkerAction = options.onMarkerAction;
     this.onNoteSelected = options.onNoteSelected;
+    this.onZoomChange = options.onZoomChange; // NEW: Callback for zoom changes
     this.gameplay = options.gameplay;
     this.selectedNoteType = options.selectedNoteType;
     this.commandManager = options.commandManager;
     this.audioBuffer = options.audioBuffer;
-    console.log("PIXI object in Timeline constructor:", PIXI); // Added for debugging
+    this.selectionManager = options.selectionManager; // NEW: Add selection manager// Added for debugging
+    // Get initial background color from timeline container's computed style
+    const timelineContainerStyle = getComputedStyle(this.parent);
+    const bgColor = timelineContainerStyle.backgroundColor;
 
-    console.assert(typeof this.createGrid === 'function', "Timeline.createGrid is not a function in constructor!");
+    // Convert RGB to hex
+    let bgColorHex = 0x1a1a1a; // default
+    if (bgColor.startsWith('rgb')) {
+        const rgb = bgColor.match(/\d+/g);
+        if (rgb && rgb.length >= 3) {
+            bgColorHex = (parseInt(rgb[0]) << 16) | (parseInt(rgb[1]) << 8) | parseInt(rgb[2]);
+        }
+    } else if (bgColor.startsWith('#')) {
+        bgColorHex = parseInt(bgColor.replace('#', ''), 16);
+    }
 
     this.app = new PIXI.Application({
-        backgroundColor: 0x1a1a1a,
+        backgroundColor: bgColorHex,
+        backgroundAlpha: 1,
+        clearBeforeRender: true,
         resizeTo: this.parent,
+        eventMode: 'static',
     });
     this.parent.appendChild(this.app.view);
 
     this.container = new PIXI.Container();
+    this.container.eventMode = 'static';
+    this.container.interactiveChildren = true;
     this.app.stage.addChild(this.container);
+    this.app.stage.eventMode = 'static';
+    this.app.stage.hitArea = this.app.screen;
 
     this.zoom = 1; // pixels per millisecond
     this.offset = 0; // in pixels
 
     this.selectedNote = null;
+    this.selectedNotes = new Set(); // NEW: Track multiple selected notes
     this.sessionMarkers = []; // For editor-only markers
     this.noteGraphics = new Map(); // Moved initialization here
     this.isDragging = false;
@@ -34,6 +55,7 @@ export function Timeline(options) {
     this.snapDivision = 4; // 1/4 beat snapping by default
     this.currentTimeIndicator = new PIXI.Graphics(); // Moved initialization here
     this.notesHit = new Set(); // Moved initialization here
+    this.temporaryNotes = []; // Buffer for notes currently being recorded
 
     this.isDraggingTimeline = false; // New flag for timeline dragging
     this.lastPointerX = 0; // New property for timeline dragging
@@ -42,10 +64,26 @@ export function Timeline(options) {
     this.wasPlayingBeforeScrub = false;
     this.wasDragging = false; // Flag to prevent click after drag
 
+    // Smooth scrolling properties
+    this.scrollVelocity = 0;
+    this.targetOffset = 0;
+    this.isScrolling = false;
+
     // For precise seeking
     this.isPreciseScrubbing = false;
     this.preciseScrubStartPointerX = 0;
     this.preciseScrubStartTime = 0;
+
+    // Box selection
+    this.isBoxSelecting = false;
+    this.boxSelectStart = { x: 0, y: 0 };
+    this.boxSelectEnd = { x: 0, y: 0 };
+    this.boxSelectGraphics = new PIXI.Graphics();
+    // Don't add to container yet - will be added on top later
+
+    // Bind box select methods once
+    this.boundBoxSelectMove = this.onBoxSelectMove.bind(this);
+    this.boundBoxSelectEnd = this.onBoxSelectEnd.bind(this);
 
     this.waveformRenderer = new WaveformRenderer(this.app, this.container); // Instantiate WaveformRenderer
     if (this.audioBuffer) {
@@ -58,8 +96,32 @@ export function Timeline(options) {
     this.markerGraphics = new PIXI.Graphics();
     this.container.addChild(this.markerGraphics);
 
+    // Add box select graphics directly to stage (not container) so it's not affected by zoom/offset
+    this.app.stage.addChild(this.boxSelectGraphics);
+    this.boxSelectGraphics.zIndex = 10000;
+
+    // Create scrollbar
+    this.scrollbarContainer = new PIXI.Container();
+    this.scrollbarBg = new PIXI.Graphics();
+    this.scrollbarThumb = new PIXI.Graphics();
+    this.scrollbarContainer.addChild(this.scrollbarBg);
+    this.scrollbarContainer.addChild(this.scrollbarThumb);
+    this.app.stage.addChild(this.scrollbarContainer);
+    this.scrollbarContainer.zIndex = 9999;
+
+    this.scrollbarThumb.eventMode = 'static';
+    this.scrollbarThumb.cursor = 'pointer';
+    this.isDraggingScrollbar = false;
+    this.scrollbarDragStartX = 0;
+    this.scrollbarDragStartOffset = 0;
+
+    // Bind scrollbar methods
+    this.boundScrollbarMove = this.onScrollbarPointerMove.bind(this);
+    this.boundScrollbarUp = this.onScrollbarPointerUp.bind(this);
+
     this.createGrid();
     this.createNotes();
+    this.updateScrollbar();
 
     this.app.view.addEventListener('wheel', this.onWheel.bind(this));
     this.app.view.addEventListener('pointerdown', this.onPointerDown.bind(this));
@@ -72,11 +134,15 @@ export function Timeline(options) {
 
     // Removed: this.app.view.addEventListener('pointerdown', this.onTimelinePointerDown); // New: for timeline dragging
 
-    this.container.addChild(this.currentTimeIndicator); // Add to container after initialization
-    this.currentTimeIndicator.interactive = true;
-    this.currentTimeIndicator.buttonMode = true;
+    // Add currentTimeIndicator to stage (not container) so it's not affected by offset
+    this.app.stage.addChild(this.currentTimeIndicator);
+    this.currentTimeIndicator.eventMode = 'static';
+    this.currentTimeIndicator.cursor = 'ew-resize';
     this.currentTimeIndicator.on('pointerdown', this.onScrubStart.bind(this));
     this.drawCurrentTimeIndicator(0);
+
+    // Add scrollbar event listeners
+    this.scrollbarThumb.on('pointerdown', this.onScrollbarPointerDown.bind(this));
 } // Closing brace for export function Timeline(options)
 
 Timeline.prototype.createGrid = function () {
@@ -87,6 +153,12 @@ Timeline.prototype.createGrid = function () {
 
     // Draw waveform first
     this.waveformRenderer.draw(this.offset, this.zoom);
+
+    // Get theme-aware grid colors
+    const isLightTheme = document.body.classList.contains('theme-light');
+    const beatLineColor = isLightTheme ? 0x000000 : 0xFFFFFF;  // Black in light, white in dark
+    const halfBeatLineColor = isLightTheme ? 0x555555 : 0xAAAAAA;  // Dark gray in light, light gray in dark
+    const subdivisionLineColor = isLightTheme ? 0x888888 : 0x666666;  // Medium gray in light, darker gray in dark
 
     // --- Draw Beat and Subdivision Lines ---
     const bpm = this._chartData.getBPMAtTime(0); // Assuming constant BPM for now
@@ -109,11 +181,11 @@ Timeline.prototype.createGrid = function () {
 
         if (x >= 0 && x <= screenWidth) {
             if (isBeat) {
-                this.gridGraphics.lineStyle(1, 0xCCCCCC, 0.7); // Main beat lines (brighter)
+                this.gridGraphics.lineStyle(2, beatLineColor, 0.5); // Main beat lines - thicker and more visible
             } else if (isHalfBeat && this.snapDivision > 2) {
-                this.gridGraphics.lineStyle(1, 0x666666, 0.5); // Half-beat lines
+                this.gridGraphics.lineStyle(1, halfBeatLineColor, 0.4); // Half-beat lines
             } else {
-                this.gridGraphics.lineStyle(1, 0x444444, 0.4); // Subdivision lines (dimmest)
+                this.gridGraphics.lineStyle(1, subdivisionLineColor, 0.3); // Subdivision lines
             }
             this.gridGraphics.moveTo(x, 0).lineTo(x, screenHeight);
         }
@@ -172,8 +244,41 @@ Timeline.prototype._getMarkerAt = function (x) {
     });
 };
 
+Timeline.prototype._getNoteAtPosition = function (x, y) {
+    const clickWidth = 25; // Tolerance for clicking
+    const clickHeight = 30; // Height of one zone
+
+    const notes = this._chartData.notes || [];
+    return notes.find(note => {
+        const noteX = (note.time * this.zoom) - this.offset;
+        const noteY = note.zone * 30;
+
+        return x >= noteX - clickWidth / 2 &&
+            x <= noteX + clickWidth / 2 &&
+            y >= noteY &&
+            y <= noteY + clickHeight;
+    });
+};
+
 Timeline.prototype.onPointerDown = function (event) {
     if (event.button === 0) { // Left-click
+        // Check if clicking on a marker
+        const marker = this._getMarkerAt(event.offsetX);
+        if (marker) {
+            return; // Let marker handling take over
+        }
+
+        // Box select ONLY when Shift is held
+        if (event.shiftKey) {
+            this.isBoxSelecting = true;
+            this.boxSelectStart = { x: event.offsetX, y: event.offsetY };
+            this.boxSelectEnd = { x: event.offsetX, y: event.offsetY };
+            this.app.view.style.cursor = 'crosshair';
+            this.app.view.addEventListener('pointermove', this.boundBoxSelectMove);
+            this.app.view.addEventListener('pointerup', this.boundBoxSelectEnd);
+            return;
+        }
+
         this.onClick(event);
     } else if (event.button === 2) { // Right-click
         const marker = this._getMarkerAt(event.offsetX);
@@ -182,12 +287,93 @@ Timeline.prototype.onPointerDown = function (event) {
                 this.onMarkerAction('delete', marker);
             }
         }
-        // No other action for right-clicking the background
     }
 };
 
+Timeline.prototype.onBoxSelectMove = function (event) {
+    if (!this.isBoxSelecting) return;
+
+    this.boxSelectEnd = { x: event.offsetX, y: event.offsetY };
+    this.drawBoxSelect();
+};
+
+Timeline.prototype.onBoxSelectEnd = function (event) {
+    if (!this.isBoxSelecting) return;
+
+    this.isBoxSelecting = false;
+    this.app.view.style.cursor = 'default';
+    this.app.view.removeEventListener('pointermove', this.boundBoxSelectMove);
+    this.app.view.removeEventListener('pointerup', this.boundBoxSelectEnd);
+
+    // Calculate selection bounds
+    const x1 = Math.min(this.boxSelectStart.x, this.boxSelectEnd.x);
+    const x2 = Math.max(this.boxSelectStart.x, this.boxSelectEnd.x);
+    const y1 = Math.min(this.boxSelectStart.y, this.boxSelectEnd.y);
+    const y2 = Math.max(this.boxSelectStart.y, this.boxSelectEnd.y);
+    // Convert to time and zone ranges
+    const time1 = (x1 + this.offset) / this.zoom;
+    const time2 = (x2 + this.offset) / this.zoom;
+    const zone1 = Math.floor(y1 / 30);
+    const zone2 = Math.floor(y2 / 30);
+    // Select notes in the box
+    if (this.selectionManager) {
+        const notesInBox = this._chartData.raw.notes.filter(note => {
+            return note.time >= time1 && note.time <= time2 &&
+                note.zone >= zone1 && note.zone <= zone2;
+        });
+        if (event.ctrlKey || event.metaKey) {
+            // Add to existing selection
+            notesInBox.forEach(note => this.selectionManager.addToSelection(note));
+        } else {
+            // Replace selection
+            this.selectionManager.selectMultiple(notesInBox);
+        }
+
+        if (this.onNoteSelected) {
+            const selected = this.selectionManager.getSelection();
+            if (selected.length === 1) {
+                this.onNoteSelected(selected[0]);
+            } else {
+                this.onNoteSelected(null);
+            }
+        }
+    }
+
+    // Clear box graphics
+    this.boxSelectGraphics.clear();
+    this.drawNotes();
+};
+
+Timeline.prototype.drawBoxSelect = function () {
+    this.boxSelectGraphics.clear();
+
+    const x1 = this.boxSelectStart.x;
+    const y1 = this.boxSelectStart.y;
+    const x2 = this.boxSelectEnd.x;
+    const y2 = this.boxSelectEnd.y;
+
+    // Calculate proper x, y, width, height to handle dragging in any direction
+    const x = Math.min(x1, x2);
+    const y = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    // Draw semi-transparent blue box in screen space (not affected by zoom/offset)
+    this.boxSelectGraphics.beginFill(0x3b82f6, 0.2);
+    this.boxSelectGraphics.lineStyle(2, 0x3b82f6, 0.8);
+    this.boxSelectGraphics.drawRect(x, y, width, height);
+    this.boxSelectGraphics.endFill();
+
+    // Ensure box select is always on top and in screen space
+    this.boxSelectGraphics.position.set(0, 0);
+    this.boxSelectGraphics.zIndex = 10000;
+};
+
+Timeline.prototype.setTemporaryNotes = function (notes) {
+    this.temporaryNotes = notes || [];
+};
+
 Timeline.prototype.drawNotes = function () {
-    console.log("drawNotes: Number of notes to draw:", this._chartData.raw.notes.length);
     // Clear existing note graphics from the container
     for (const graphic of this.noteGraphics.values()) {
         this.container.removeChild(graphic);
@@ -197,11 +383,22 @@ Timeline.prototype.drawNotes = function () {
 
     const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00]; // Red, Green, Blue, Yellow
 
-    this._chartData.raw.notes.forEach(note => {
+    const notesToDraw = this.temporaryNotes.length > 0 ? this._chartData.raw.notes.concat(this.temporaryNotes) : this._chartData.raw.notes;
+
+    notesToDraw.forEach(note => {
         const x = (note.time * this.zoom) - this.offset;
         const y = note.zone * 30; // 30 pixels per zone
 
         const noteGraphic = new PIXI.Graphics();
+
+        // Check if note is selected (either in selectionManager or as selectedNote)
+        const isSelected = (this.selectionManager && this.selectionManager.isSelected(note)) || this.selectedNote === note;
+
+        if (isSelected) {
+            // Draw selection highlight
+            noteGraphic.lineStyle(3, 0xFFFF00, 1); // Yellow border for selected notes
+        }
+
         noteGraphic.beginFill(zoneColors[note.zone % zoneColors.length]);
         noteGraphic.drawRect(0, 0, 20, 20); // Note size
         noteGraphic.endFill();
@@ -209,18 +406,15 @@ Timeline.prototype.drawNotes = function () {
         noteGraphic.x = x;
         noteGraphic.y = y;
 
-        noteGraphic.interactive = true;
-        noteGraphic.buttonMode = true;
+        // CRITICAL: Set explicit hit area for PIXI v7 event system
+        noteGraphic.eventMode = 'static';
+        noteGraphic.cursor = 'pointer';
+        noteGraphic.hitArea = new PIXI.Rectangle(0, 0, 20, 20);
 
         noteGraphic.on('pointerdown', (event) => this.onNotePointerDown(event, note, noteGraphic));
 
         this.container.addChild(noteGraphic);
         this.noteGraphics.set(note, noteGraphic);
-
-        // Highlight if selected
-        if (this.selectedNote === note) {
-            this.highlightNote(noteGraphic);
-        }
     });
 };
 
@@ -251,15 +445,15 @@ Timeline.prototype.onTimelinePointerMove = function (event) {
         this.createGrid();
         this.drawNotes();
         this.drawMarkers();
+        this.updateScrollbar();
         this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
     }
 };
 
 Timeline.prototype.onNotePointerDown = function (event, note, noteGraphic) {
-    // This check is now inside onPointerDown, but we need to handle right-clicks on notes specifically.
-    if (event.data.button === 2) { // Right-click
+    // Handle right-click deletion
+    if (event.data.button === 2) {
         event.stopPropagation();
-        console.log("Right-click detected on note, attempting to delete:", note);
         this.commandManager.execute(new DeleteNoteCommand(this._chartData, note));
         if (this.selectedNote === note) {
             this.selectedNote = null;
@@ -267,74 +461,141 @@ Timeline.prototype.onNotePointerDown = function (event, note, noteGraphic) {
                 this.onNoteSelected(null);
             }
         }
-        this.drawNotes();
-        return;
-    }
-    console.log("Note clicked:", note, "Button:", event.button, "Selected Note before:", this.selectedNote);
-
-    if (event.button === 2) { // Right-click
-        event.stopPropagation();
-        event.preventDefault(); // Prevent context menu
-        console.log("Right-click detected, attempting to delete note:", note);
-        this.commandManager.execute(new DeleteNoteCommand(this._chartData, note));
-        this.selectedNote = null;
-        if (this.onNoteSelected) {
-            this.onNoteSelected(null);
+        if (this.selectionManager) {
+            this.selectionManager.removeFromSelection(note);
         }
         this.drawNotes();
-        console.log("Note deleted via right-click. Selected Note after:", this.selectedNote);
         return;
     }
 
     event.stopPropagation(); // Prevent timeline click event
+    const isCtrlPressed = event.data.originalEvent.ctrlKey || event.data.originalEvent.metaKey;
+    const isShiftPressed = event.data.originalEvent.shiftKey;
 
-    // Single-click: select note
-    if (this.selectedNote && this.selectedNote !== note) {
-        // Deselect previous note
-        const prevGraphic = this.noteGraphics.get(this.selectedNote);
-        if (prevGraphic) {
-            const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00];
-            prevGraphic.clear();
-            prevGraphic.beginFill(zoneColors[this.selectedNote.zone % zoneColors.length]);
-            prevGraphic.drawRect(0, 0, 20, 20);
-            prevGraphic.endFill();
+    if (this.selectionManager) {
+        const isAlreadySelected = this.selectionManager.isSelected(note);
+
+        if (isCtrlPressed) {
+            // Ctrl+Click: Toggle selection
+            this.selectionManager.toggleSelection(note);
+            this.selectedNote = note;
+        } else if (isShiftPressed && this.selectedNote) {
+            // Shift+Click: Add to selection
+            this.selectionManager.addToSelection(note);
+        } else if (isAlreadySelected && this.selectionManager.getSelection().length > 1) {
+            // Clicking on an already-selected note in a multi-selection: keep selection and start drag
+            this.selectedNote = note;
+        } else {
+            // Regular click: Select only this note
+            this.selectionManager.selectNote(note);
+            this.selectedNote = note;
+        }
+
+        // Notify editor of selection change
+        if (this.onNoteSelected) {
+            const selected = this.selectionManager.getSelection();
+            if (selected.length === 1) {
+                this.onNoteSelected(selected[0]);
+            } else if (selected.length > 1) {
+                this.onNoteSelected(null); // Multiple selection, clear property panel
+            } else {
+                this.onNoteSelected(null);
+            }
+        }
+    } else {
+        // Fallback to old single-selection behavior
+        if (this.selectedNote && this.selectedNote !== note) {
+            const prevGraphic = this.noteGraphics.get(this.selectedNote);
+            if (prevGraphic) {
+                const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00];
+                prevGraphic.clear();
+                prevGraphic.beginFill(zoneColors[this.selectedNote.zone % zoneColors.length]);
+                prevGraphic.drawRect(0, 0, 20, 20);
+                prevGraphic.endFill();
+            }
+        }
+        this.selectedNote = note;
+        this.highlightNote(noteGraphic);
+        if (this.onNoteSelected) {
+            this.onNoteSelected(note);
         }
     }
-    this.selectedNote = note;
-    this.highlightNote(noteGraphic);
-    if (this.onNoteSelected) {
-        this.onNoteSelected(note);
-    }
-    console.log("Note selected:", this.selectedNote);
 
-    // Initiate drag on single left-click
-    this.isDragging = true;
-    this.wasDragging = false; // Reset drag flag on new interaction
-    this.app.view.addEventListener('pointermove', this.onNotePointerMove.bind(this));
-    this.app.view.addEventListener('pointerup', this.onNotePointerUp.bind(this));
+    // DON'T redraw notes here - it destroys event listeners during drag
+    // this.drawNotes(); // Redraw to show selection
+
+    // Initiate drag: if clicking on already-selected note OR single-clicking
+    const shouldStartDrag = !isCtrlPressed && !isShiftPressed;
+
+    if (shouldStartDrag) {
+        this.isDragging = true;
+        this.wasDragging = false;
+        this.app.view.addEventListener('pointermove', this.onNotePointerMove.bind(this));
+        this.app.view.addEventListener('pointerup', this.onNotePointerUp.bind(this));
+    } else {
+        // Only redraw if we're multi-selecting (not dragging)
+        this.drawNotes();
+    }
 };
 
 Timeline.prototype.onNotePointerMove = function (event) {
     if (this.isDragging && this.selectedNote) {
-        const pxToMs = (px) => (px + this.offset) / this.zoom; // Corrected pxToMs
-        let newTime = pxToMs(event.offsetX); // Use offsetX
-        let newZone = Math.floor(event.offsetY / 30); // Use offsetY
+        const pxToMs = (px) => (px + this.offset) / this.zoom;
+        let newTime = pxToMs(event.offsetX);
+        let newZone = Math.floor(event.offsetY / 30);
 
         if (this.snapEnabled) {
             newTime = this.snapToBeat(newTime);
         }
 
-        newZone = Math.max(0, Math.min(5, newZone)); // Clamp zone (0-5 for 6 zones)
+        newZone = Math.max(0, Math.min(5, newZone));
 
-        // Only execute command if position actually changed
-        if (this.selectedNote.time !== newTime || this.selectedNote.zone !== newZone) {
-            this.wasDragging = true; // It's a drag, not a click
-            const oldTime = this.selectedNote.time;
-            const oldZone = this.selectedNote.zone;
-            this.commandManager.execute(new MoveNoteCommand(this._chartData, this.selectedNote, oldTime, oldZone, newTime, newZone));
+        // Calculate delta from the primary selected note
+        const deltaTime = newTime - this.selectedNote.time;
+        const deltaZone = newZone - this.selectedNote.zone;
+
+        // Only execute if position actually changed
+        if (deltaTime !== 0 || deltaZone !== 0) {
+            this.wasDragging = true;
+
+            // Get all selected notes (or just the single selected note)
+            const notesToMove = this.selectionManager ?
+                this.selectionManager.getSelection() :
+                [this.selectedNote];
+
+            // Check if ANY note would go out of bounds
+            const wouldGoOutOfBounds = notesToMove.some(note => {
+                const newNoteZone = note.zone + deltaZone;
+                return newNoteZone < 0 || newNoteZone > 5;
+            });
+
+            // If any note would go out of bounds, don't move any notes
+            if (wouldGoOutOfBounds) {
+                return;
+            }
+
+            // Move all selected notes by the same delta
+            notesToMove.forEach(note => {
+                const oldTime = note.time;
+                const oldZone = note.zone;
+                const newNoteTime = oldTime + deltaTime;
+                const newNoteZone = oldZone + deltaZone;
+
+                if (note.time !== newNoteTime || note.zone !== newNoteZone) {
+                    this.commandManager.execute(new MoveNoteCommand(
+                        this._chartData,
+                        note,
+                        oldTime,
+                        oldZone,
+                        newNoteTime,
+                        newNoteZone
+                    ));
+                }
+            });
+
             this.drawNotes();
             if (this.onNoteSelected) {
-                this.onNoteSelected(this.selectedNote); // Update panel during drag
+                this.onNoteSelected(this.selectedNote);
             }
         }
     }
@@ -359,25 +620,39 @@ Timeline.prototype.onClick = function (event) {
         return;
     }
 
-    console.log("Timeline background clicked. Selected Note before:", this.selectedNote, "wasDragging:", this.wasDragging);
-    // If a note was clicked, onNoteClick would have stopped propagation
-    // So if we reach here, it's a click on the timeline background
-    if (this.selectedNote) {
-        const prevGraphic = this.noteGraphics.get(this.selectedNote);
-        if (prevGraphic) {
-            const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00];
-            prevGraphic.clear();
-            prevGraphic.beginFill(zoneColors[this.selectedNote.zone % zoneColors.length]);
-            prevGraphic.drawRect(0, 0, 20, 20);
-            prevGraphic.endFill();
+    // If we're currently dragging, don't create a note
+    if (this.isDragging) {
+        return;
+    }
+    // Check if clicking on an existing note - if so, don't create a new one
+    const clickedNote = this._getNoteAtPosition(event.offsetX, event.offsetY);
+    if (clickedNote) {
+        return; // Note click will be handled by onNotePointerDown
+    }
+
+    // Clear selection when clicking background (unless Ctrl is held)
+    const isCtrlPressed = event.ctrlKey || event.metaKey;
+
+    if (!isCtrlPressed) {
+        if (this.selectionManager) {
+            this.selectionManager.clearSelection();
+        }
+
+        if (this.selectedNote) {
+            const prevGraphic = this.noteGraphics.get(this.selectedNote);
+            if (prevGraphic) {
+                const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00];
+                prevGraphic.clear();
+                prevGraphic.beginFill(zoneColors[this.selectedNote.zone % zoneColors.length]);
+                prevGraphic.drawRect(0, 0, 20, 20);
+                prevGraphic.endFill();
+            }
+        }
+        this.selectedNote = null;
+        if (this.onNoteSelected) {
+            this.onNoteSelected(null);
         }
     }
-    this.selectedNote = null;
-    if (this.onNoteSelected) {
-        this.onNoteSelected(null);
-    }
-    this.drawNotes(); // Redraw to remove selection highlight
-    console.log("Note deselected via background click. Selected Note after:", this.selectedNote);
 
     const pxToMs = (px) => (px + this.offset) / this.zoom;
     let time = pxToMs(event.offsetX);
@@ -392,10 +667,12 @@ Timeline.prototype.onClick = function (event) {
         this.commandManager.execute(new AddNoteCommand(this._chartData, newNote));
         this.drawNotes();
         this.selectedNote = newNote; // Select the newly created note
+        if (this.selectionManager) {
+            this.selectionManager.selectNote(newNote);
+        }
         if (this.onNoteSelected) {
             this.onNoteSelected(newNote);
         }
-        console.log("New note added and selected:", newNote);
     }
 };
 
@@ -426,6 +703,9 @@ Timeline.prototype.onScrubStart = function (event) {
     this.app.view.addEventListener('pointerup', this._boundScrubEnd);
     this.app.view.addEventListener('pointerupoutside', this._boundScrubEnd);
 
+    // Also add to window to catch releases outside the canvas
+    window.addEventListener('pointerup', this._boundScrubEnd);
+
     // The event from PIXI is a wrapper, we need the original DOM event for offsetX
     if (event.data && event.data.originalEvent) {
         this.onScrubMove(event.data.originalEvent);
@@ -452,50 +732,148 @@ Timeline.prototype.onScrubMove = function (event) {
     if (this.audioPlayer && newTime >= 0 && newTime <= this.audioPlayer.duration * 1000) {
         this.audioPlayer.currentTime = newTime / 1000;
         this.drawCurrentTimeIndicator(newTime);
+
+        // Preview notes at scrubbed position if paused
+        if (this.audioPlayer.paused && this.gameplay) {
+            this.gameplay.previewAtTime(newTime);
+        }
     }
 };
 
 Timeline.prototype.onScrubEnd = function (event) {
     if (!this.isScrubbing) return;
 
-    event.preventDefault();
+    if (event) event.preventDefault();
 
     this.isScrubbing = false;
     this.isPreciseScrubbing = false; // Reset precise scrubbing flag
 
-    this.app.view.removeEventListener('pointermove', this._boundScrubMove);
-    this.app.view.removeEventListener('pointerup', this._boundScrubEnd);
-    this.app.view.removeEventListener('pointerupoutside', this._boundScrubEnd);
+    // Remove event listeners
+    if (this._boundScrubMove) {
+        this.app.view.removeEventListener('pointermove', this._boundScrubMove);
+        window.removeEventListener('pointermove', this._boundScrubMove);
+    }
+    if (this._boundScrubEnd) {
+        this.app.view.removeEventListener('pointerup', this._boundScrubEnd);
+        this.app.view.removeEventListener('pointerupoutside', this._boundScrubEnd);
+        window.removeEventListener('pointerup', this._boundScrubEnd);
+    }
+
+    // Final preview update at end position if paused
+    if (this.audioPlayer && this.audioPlayer.paused && this.gameplay) {
+        this.gameplay.previewAtTime(this.audioPlayer.currentTime * 1000);
+    }
 };
 
 Timeline.prototype.onWheel = function (event) {
     event.preventDefault();
     if (event.ctrlKey) {
-        // Zoom
-        const zoomFactor = 1.1;
-        const oldZoom = this.zoom;
-        this.zoom *= event.deltaY > 0 ? 1 / zoomFactor : zoomFactor;
-        this.zoom = Math.max(0.01, Math.min(10, this.zoom));
+        // Smooth zoom with mouse pointer as target
+        const zoomFactor = 1.15; // Increased from 1.1 for faster zoom
+        const targetZoom = event.deltaY > 0 ? this.zoom / zoomFactor : this.zoom * zoomFactor;
+        const clampedZoom = Math.max(0.01, Math.min(10, targetZoom));
 
-        // Zoom towards mouse pointer
+        // Cancel any existing zoom animation
+        if (this.zoomAnimationFrame) {
+            cancelAnimationFrame(this.zoomAnimationFrame);
+        }
+
+        const startZoom = this.zoom;
+        const endZoom = clampedZoom;
+        const duration = 80; // milliseconds - faster animation
+        const startTime = performance.now();
+
+        // Store the mouse position for zoom target
         const mouseX = event.offsetX;
-        const chartTimeAtMouse = (this.offset + mouseX) / oldZoom;
-        this.offset = chartTimeAtMouse * this.zoom - mouseX;
+        const chartTimeAtMouse = (this.offset + mouseX) / startZoom;
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease out cubic for smooth deceleration
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+            // Interpolate zoom
+            const currentZoom = startZoom + (endZoom - startZoom) * easeProgress;
+            this.zoom = currentZoom;
+
+            // Adjust offset to zoom towards mouse pointer
+            this.offset = chartTimeAtMouse * this.zoom - mouseX;
+            this.offset = Math.max(0, this.offset);
+
+            // Redraw timeline
+            this.createGrid();
+            this.drawNotes();
+            this.drawMarkers();
+            this.updateScrollbar();
+            this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+
+            // Notify editor of zoom change
+            if (this.onZoomChange) {
+                this.onZoomChange(this.zoom);
+            }
+
+            // Continue animation if not complete
+            if (progress < 1) {
+                this.zoomAnimationFrame = requestAnimationFrame(animate);
+            } else {
+                this.zoomAnimationFrame = null;
+            }
+        };
+
+        this.zoomAnimationFrame = requestAnimationFrame(animate);
 
     } else {
-        // Scroll
-        this.offset += event.deltaY;
+        // Smooth scroll with momentum
+        const scrollAmount = event.deltaY * 0.5; // Reduce sensitivity
+        this.scrollVelocity += scrollAmount;
+
+        // Start smooth scrolling animation if not already running
+        if (!this.isScrolling) {
+            this.isScrolling = true;
+            this.smoothScroll();
+        }
+
+        this.offset = Math.max(0, this.offset);
+        this.createGrid();
+        this.drawNotes();
+        this.drawMarkers();
+        this.updateScrollbar();
+        this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
     }
+};
+
+Timeline.prototype.smoothScroll = function () {
+    if (!this.isScrolling) return;
+
+    // Apply velocity to offset
+    this.offset += this.scrollVelocity;
     this.offset = Math.max(0, this.offset);
 
+    // Apply friction/easing
+    this.scrollVelocity *= 0.85; // Friction coefficient (0.85 = smooth deceleration)
+
+    // Stop scrolling when velocity is very small
+    if (Math.abs(this.scrollVelocity) < 0.1) {
+        this.scrollVelocity = 0;
+        this.isScrolling = false;
+    }
+
+    // Redraw timeline
     this.createGrid();
     this.drawNotes();
     this.drawMarkers();
+    this.updateScrollbar();
     this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+
+    // Continue animation
+    if (this.isScrolling) {
+        requestAnimationFrame(() => this.smoothScroll());
+    }
 };
 
 Timeline.prototype.onKeyDown = function (event) {
-    console.log("Key down:", event.key, "Selected Note:", this.selectedNote);
     if (event.key === 'Delete' && this.selectedNote) {
         event.preventDefault(); // Prevent browser default action
         this.commandManager.execute(new DeleteNoteCommand(this._chartData, this.selectedNote));
@@ -504,7 +882,6 @@ Timeline.prototype.onKeyDown = function (event) {
             this.onNoteSelected(null);
         }
         this.drawNotes();
-        console.log("Note deleted via Delete key. Selected Note after:", this.selectedNote);
     }
 };
 
@@ -523,6 +900,7 @@ Timeline.prototype.update = function () {
     this.createGrid();
     this.drawNotes();
     this.drawMarkers();
+    this.updateScrollbar();
 };
 
 Timeline.prototype.setZoom = function (newZoom) {
@@ -537,7 +915,55 @@ Timeline.prototype.setZoom = function (newZoom) {
     this.createGrid();
     this.drawNotes();
     this.drawMarkers();
+    this.updateScrollbar();
     this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+};
+
+Timeline.prototype.smoothZoom = function (targetZoom) {
+    // Cancel any existing zoom animation
+    if (this.zoomAnimationFrame) {
+        cancelAnimationFrame(this.zoomAnimationFrame);
+    }
+
+    const startZoom = this.zoom;
+    const endZoom = Math.max(0.01, Math.min(10, targetZoom));
+    const duration = 100; // milliseconds - faster animation
+    const startTime = performance.now();
+
+    // Store the center point for consistent zoom target
+    const centerX = this.app.screen.width / 2;
+    const chartTimeAtCenter = (this.offset + centerX) / startZoom;
+
+    const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease out cubic for smooth deceleration
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+        // Interpolate zoom
+        const currentZoom = startZoom + (endZoom - startZoom) * easeProgress;
+        this.zoom = currentZoom;
+
+        // Adjust offset to maintain center point
+        this.offset = chartTimeAtCenter * this.zoom - centerX;
+
+        // Redraw timeline
+        this.createGrid();
+        this.drawNotes();
+        this.drawMarkers();
+        this.updateScrollbar();
+        this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+
+        // Continue animation if not complete
+        if (progress < 1) {
+            this.zoomAnimationFrame = requestAnimationFrame(animate);
+        } else {
+            this.zoomAnimationFrame = null;
+        }
+    };
+
+    this.zoomAnimationFrame = requestAnimationFrame(animate);
 };
 
 Timeline.prototype.setSessionMarkers = function (markers) {
@@ -554,14 +980,163 @@ Timeline.prototype.drawCurrentTimeIndicator = function (currentTime) {
     this.currentTimeIndicator.clear();
     this.currentTimeIndicator.lineStyle(2, 0xFFFFFF, 1); // White line
     const x = (currentTime * this.zoom) - this.offset;
+    const height = this.app.renderer.height;
     this.currentTimeIndicator.moveTo(x, 0);
-    this.currentTimeIndicator.lineTo(x, this.app.screen.height);
+    this.currentTimeIndicator.lineTo(x, height);
 
     // Create a larger, invisible hit area to make it easier to grab
-    this.currentTimeIndicator.hitArea = new PIXI.Rectangle(x - 5, 0, 10, this.app.screen.height);
+    this.currentTimeIndicator.hitArea = new PIXI.Rectangle(x - 5, 0, 10, height);
+
+    // Auto-scroll when playhead reaches the edge (FL Studio style)
+    if (this.audioPlayer && !this.audioPlayer.paused && !this.isDraggingScrollbar && !this.isManuallyScrolling) {
+        const viewWidth = this.app.renderer.width;
+        const rightEdge = viewWidth * 0.9; // Scroll when playhead reaches 90% of view width
+
+        // If playhead is past the right edge, scroll forward by one screen width
+        if (x > rightEdge) {
+            this.offset = currentTime * this.zoom - (viewWidth * 0.1); // Position playhead at 10% from left
+            this.createGrid();
+            this.drawNotes();
+            this.drawMarkers();
+            this.updateScrollbar();
+        }
+        // If playhead is before the left edge (e.g., after seeking backward), scroll to show it
+        else if (x < 0) {
+            this.offset = Math.max(0, currentTime * this.zoom - (viewWidth * 0.1));
+            this.createGrid();
+            this.drawNotes();
+            this.drawMarkers();
+            this.updateScrollbar();
+        }
+    }
 };
 
 Timeline.prototype.setWaveformColor = function (color) {
     this.waveformRenderer.setColor(color);
     this.createGrid(); // Redraw grid which includes the waveform
+    this.updateScrollbar();
+};
+
+Timeline.prototype.updateBackgroundColor = function () {
+    // Get background color from timeline container's actual background
+    const timelineContainerStyle = getComputedStyle(this.parent);
+    const bgColor = timelineContainerStyle.backgroundColor;
+
+    // Convert RGB to hex
+    let bgColorHex = 0x1a1a1a; // default
+    if (bgColor.startsWith('rgb')) {
+        const rgb = bgColor.match(/\d+/g);
+        if (rgb && rgb.length >= 3) {
+            bgColorHex = (parseInt(rgb[0]) << 16) | (parseInt(rgb[1]) << 8) | parseInt(rgb[2]);
+        }
+    } else if (bgColor.startsWith('#')) {
+        bgColorHex = parseInt(bgColor.replace('#', ''), 16);
+    }
+
+    // Update PIXI renderer background color
+    if (this.app && this.app.renderer) {
+        this.app.renderer.background.color = bgColorHex;
+    }
+};
+
+Timeline.prototype.updateScrollbar = function () {
+    const scrollbarHeight = 12;
+    const scrollbarPadding = 4;
+    const scrollbarY = this.app.renderer.height - scrollbarHeight - scrollbarPadding;
+    const scrollbarWidth = this.app.renderer.width - (scrollbarPadding * 2);
+
+    // Calculate total content width (total chart duration in pixels)
+    const chartDuration = this._chartData.metadata?.duration || 180000; // Default 3 minutes
+    const totalContentWidth = chartDuration * this.zoom;
+
+    // Calculate visible ratio and thumb width
+    const visibleRatio = Math.min(1, this.app.renderer.width / totalContentWidth);
+    const thumbWidth = Math.max(40, scrollbarWidth * visibleRatio); // Minimum 40px thumb
+
+    // Calculate thumb position based on offset
+    const scrollRatio = this.offset / Math.max(1, totalContentWidth - this.app.renderer.width);
+    const thumbX = scrollbarPadding + (scrollbarWidth - thumbWidth) * scrollRatio;
+
+    // Draw scrollbar background
+    this.scrollbarBg.clear();
+    this.scrollbarBg.beginFill(0x2a2a2a, 0.8);
+    this.scrollbarBg.drawRoundedRect(scrollbarPadding, scrollbarY, scrollbarWidth, scrollbarHeight, 6);
+    this.scrollbarBg.endFill();
+
+    // Draw scrollbar thumb
+    this.scrollbarThumb.clear();
+    this.scrollbarThumb.beginFill(0x4a9eff, 0.9);
+    this.scrollbarThumb.drawRoundedRect(thumbX, scrollbarY, thumbWidth, scrollbarHeight, 6);
+    this.scrollbarThumb.endFill();
+
+    // Update hit area for dragging
+    this.scrollbarThumb.hitArea = new PIXI.Rectangle(thumbX, scrollbarY, thumbWidth, scrollbarHeight);
+
+    // Store scrollbar properties for drag calculations
+    this.scrollbarProps = {
+        y: scrollbarY,
+        height: scrollbarHeight,
+        padding: scrollbarPadding,
+        width: scrollbarWidth,
+        thumbWidth: thumbWidth,
+        totalContentWidth: totalContentWidth
+    };
+};
+
+Timeline.prototype.onScrollbarPointerDown = function (event) {
+    this.isDraggingScrollbar = true;
+    this.scrollbarDragStartX = event.data.global.x;
+    this.scrollbarDragStartOffset = this.offset;
+
+    // Use PIXI events instead of DOM events
+    this.scrollbarThumb.on('pointermove', this.boundScrollbarMove);
+    this.scrollbarThumb.on('pointerup', this.boundScrollbarUp);
+    this.scrollbarThumb.on('pointerupoutside', this.boundScrollbarUp);
+
+    // Also listen on stage for better tracking
+    this.app.stage.on('pointermove', this.boundScrollbarMove);
+    this.app.stage.on('pointerup', this.boundScrollbarUp);
+    this.app.stage.on('pointerupoutside', this.boundScrollbarUp);
+};
+
+Timeline.prototype.onScrollbarPointerMove = function (event) {
+    if (!this.isDraggingScrollbar || !this.scrollbarProps) return;
+
+    const deltaX = event.data.global.x - this.scrollbarDragStartX;
+    const scrollableWidth = this.scrollbarProps.width - this.scrollbarProps.thumbWidth;
+    const contentScrollRange = this.scrollbarProps.totalContentWidth - this.app.renderer.width;
+
+    // Convert pixel delta to offset delta
+    const offsetDelta = (deltaX / scrollableWidth) * contentScrollRange;
+    this.offset = Math.max(0, Math.min(contentScrollRange, this.scrollbarDragStartOffset + offsetDelta));
+
+    // Mark that we're manually scrolling to prevent auto-scroll interference
+    this.isManuallyScrolling = true;
+
+    this.createGrid();
+    this.drawNotes();
+    this.drawMarkers();
+    this.updateScrollbar();
+
+    // Update playhead position to reflect current audio time
+    this.drawCurrentTimeIndicator(this.audioPlayer.currentTime * 1000);
+};
+
+Timeline.prototype.onScrollbarPointerUp = function () {
+    this.isDraggingScrollbar = false;
+
+    // Keep manual scrolling flag active for a short time after release
+    // to prevent immediate auto-scroll
+    setTimeout(() => {
+        this.isManuallyScrolling = false;
+    }, 1000); // 1 second delay
+
+    // Remove PIXI event listeners
+    this.scrollbarThumb.off('pointermove', this.boundScrollbarMove);
+    this.scrollbarThumb.off('pointerup', this.boundScrollbarUp);
+    this.scrollbarThumb.off('pointerupoutside', this.boundScrollbarUp);
+
+    this.app.stage.off('pointermove', this.boundScrollbarMove);
+    this.app.stage.off('pointerup', this.boundScrollbarUp);
+    this.app.stage.off('pointerupoutside', this.boundScrollbarUp);
 };

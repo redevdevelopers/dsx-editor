@@ -51,19 +51,15 @@ export class AddNoteCommand extends Command {
     }
 
     execute() {
-        console.log("AddNoteCommand: Before execute, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
         this.chartData.raw.notes.push(this.note);
         this.chartData.raw.notes.sort((a, b) => a.time - b.time);
-        console.log("AddNoteCommand: After execute, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
     }
 
     undo() {
-        console.log("AddNoteCommand: Before undo, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
         const index = this.chartData.raw.notes.indexOf(this.note);
         if (index > -1) {
             this.chartData.raw.notes.splice(index, 1);
         }
-        console.log("AddNoteCommand: After undo, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
     }
 }
 
@@ -77,22 +73,18 @@ export class DeleteNoteCommand extends Command {
     }
 
     execute() {
-        console.log("DeleteNoteCommand: Before execute, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
         const index = this.chartData.raw.notes.indexOf(this.note);
         if (index > -1) {
             this.originalIndex = index;
             this.chartData.raw.notes.splice(index, 1);
         }
-        console.log("DeleteNoteCommand: After execute, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
     }
 
     undo() {
-        console.log("DeleteNoteCommand: Before undo, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
         if (this.originalIndex > -1) {
             this.chartData.raw.notes.splice(this.originalIndex, 0, this.note);
             this.chartData.raw.notes.sort((a, b) => a.time - b.time); // Re-sort just in case
         }
-        console.log("DeleteNoteCommand: After undo, notes:", this.chartData.raw.notes.length, this.chartData.raw.notes);
     }
 }
 
@@ -118,5 +110,29 @@ export class MoveNoteCommand extends Command {
         this.note.time = this.oldTime;
         this.note.zone = this.oldZone;
         this.chartData.raw.notes.sort((a, b) => a.time - b.time);
+    }
+}
+
+// Command for adding multiple notes from a recording session
+export class AddRecordedNotesCommand extends Command {
+    constructor(chartData, recordedNotes) {
+        super();
+        this.chartData = chartData;
+        this.recordedNotes = recordedNotes;
+    }
+
+    execute() {
+        this.chartData.raw.notes.push(...this.recordedNotes);
+        this.chartData.raw.notes.sort((a, b) => a.time - b.time);
+    }
+
+    undo() {
+        this.recordedNotes.forEach(noteToRemove => {
+            const index = this.chartData.raw.notes.indexOf(noteToRemove);
+            if (index > -1) {
+                this.chartData.raw.notes.splice(index, 1);
+            }
+        });
+        // No need to sort after undoing as notes are removed. The remaining notes are already sorted.
     }
 }

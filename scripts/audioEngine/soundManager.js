@@ -16,8 +16,7 @@ export class SoundManager {
 
             // Attempt to resume AudioContext if it's suspended (common in browsers)
             if (this.context.state === 'suspended') {
-                console.log('AudioContext is suspended, attempting to resume during init.');
-                await this.context.resume().catch(e => console.error('Failed to resume AudioContext during init:', e));
+                await this.context.resume().catch(e => { });
             }
 
             // Create gain nodes for master/effects/music routing
@@ -71,45 +70,33 @@ export class SoundManager {
                     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
                     this.sounds[name] = audioBuffer;
                 } catch (e) {
-                    console.warn(`Failed to load sound: ${name}`, e);
                 }
             });
 
             await Promise.all(loadPromises);
             this.initialized = true;
         } catch (e) {
-            console.warn('Failed to initialize audio', e);
         }
     }
 
     async play(name, options = {}) {
-        console.log(`[SoundManager] Attempting to play sound: ${name}`);
         if (!this.sounds[name]) {
-            console.warn(`[SoundManager] Sound "${name}" not found in loaded sounds.`);
             // Try to initialize if not ready
             try {
                 await this.init();
                 if (!this.sounds[name]) {
-                    console.error(`[SoundManager] Sound "${name}" still not found after re-initialization.`);
                     return;
                 }
             } catch (e) {
-                console.error(`[SoundManager] Failed to initialize soundManager for ${name}:`, e);
                 return;
             }
         }
-        console.log(`[SoundManager] Sound "${name}" found. Initialized: ${this.initialized}`);
-
         try {
-            console.log(`[SoundManager] AudioContext state before resume attempt: ${this.context.state}`);
             if (this.context.state === 'suspended') {
-                console.warn('[SoundManager] AudioContext is suspended, attempting to resume.');
-                await this.context.resume().catch(e => console.error('[SoundManager] Failed to resume AudioContext:', e));
-                console.log(`[SoundManager] AudioContext state after resume attempt: ${this.context.state}`);
+                await this.context.resume().catch(e => { });
             }
 
             if (this.context.state !== 'running') {
-                console.error(`[SoundManager] AudioContext is not running, cannot play sound: ${name}`);
                 return;
             }
 
@@ -127,22 +114,17 @@ export class SoundManager {
             // route sound effects through effectsGain (if available) so global changes apply
             if (this.effectsGain) {
                 gain.connect(this.effectsGain);
-                console.log('[SoundManager] EffectsGain connected to masterGain.');
             }
             else {
                 gain.connect(this.context.destination);
-                console.log('[SoundManager] EffectsGain not available, connecting directly to destination.');
             }
 
             source.start(0);
             this.playingSources[name] = source;
             source.onended = () => {
                 delete this.playingSources[name];
-                console.log(`[SoundManager] Sound "${name}" finished playing.`);
             };
-            console.log(`[SoundManager] Successfully started playing sound: ${name}`);
         } catch (e) {
-            console.error(`[SoundManager] Failed to play sound: ${name}`, e);
         }
     }
 
@@ -183,7 +165,6 @@ export class SoundManager {
             source.start(0);
             this.loopingSources[name] = source;
         } catch (e) {
-            console.warn(`Failed to play loop: ${name}`, e);
         }
     }
 

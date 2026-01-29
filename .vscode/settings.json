@@ -1,0 +1,5 @@
+{
+    "geminicodeassist.agentDebugMode": true,
+    "geminicodeassist.verboseLogging": true,
+    "geminicodeassist.chat.enableStreaming": true
+}

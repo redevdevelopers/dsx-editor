@@ -1,12 +1,56 @@
 import { createHexGrid } from '../hexGrid.js';
 import { createParallaxBackground } from '../UI/background.js';
 import { spawnNote } from '../noteAnimation.js';
-import { showHitFeedback } from '../hitFeedback.js';
 import { drawHex } from '../Utils/utils.js';
 import { soundManager } from '../audioEngine/soundManager.js';
 import { tryHit } from '../hitAndCombo.js';
 
 const { PIXI } = window;
+
+// Visual tuning constants (simplified from main game)
+const VisualTuning = {
+    timing: {
+        hexZone: {
+            bounceDuration: 160,
+            bounceScale: 1.1,
+            glowIdleSpeed: 2,
+            glowBaseAlpha: 0.2,
+            glowHitPulseDuration: 600,
+            glowHitPulseIntensity: 0.6,
+            incomingFlashDuration: 400,
+            incomingFlashIntensity: 0.8,
+            bloomAlpha: 0.85
+        },
+        noteApproach: {
+            bodyAlphaMultiplier: 2,
+            ringStartScale: 2.2,
+            ringEndScale: 1.0,
+            ringMinScale: 0.2,
+            ringMaxScale: 2.2,
+            ringAlphaPower: 3,
+            ringAlphaMultiplier: 1.0, // Brightest white (was 0.95)
+            arcVisibilityStart: 0.5,
+            arcAlpha: 1.0 // Brightest white (was 0.95)
+        },
+        particles: {
+            gravity: 0.3,
+            lifeDecay: 16,
+            scaleMultiplier: 0.6
+        }
+    },
+    visual: {
+        note: {
+            approachRingLineWidth: 4, // Thinner (was 8)
+            approachRingAlpha: 1.0, // Brightest white (was 0.95)
+            timingArcLineWidth: 4, // Thinner (was 6)
+            timingArcRadius: 1.1
+        }
+    },
+    colors: {
+        approachRing: 0xFFFFFF, // Pure white
+        timingArc: 0xFFFFFF // Pure white
+    }
+};
 
 export class Gameplay {
     get app() {
@@ -41,6 +85,7 @@ export class Gameplay {
 
         this.activeParticles = [];
         this.zoneLastHit = new Array(6).fill(0);
+        this.incomingFlashes = new Array(6).fill(null); // Track incoming glow flash times per zone
 
         this.running = false;
         this.chart = { notes: [] };
@@ -62,7 +107,26 @@ export class Gameplay {
         });
 
         this.hexAnimations = [];
-        this.hexShakeAnimations = []; // Re-added for shakeHex
+        this.hexShakeAnimations = [];
+
+        // Bloom animation state (for smooth fade-out)
+        this.bloomTargetScale = new Array(6).fill(1.0);
+        this.bloomTargetAlpha = new Array(6).fill(0);
+        this.bloomCurrentScale = new Array(6).fill(1.0);
+        this.bloomCurrentAlpha = new Array(6).fill(0);
+
+        // Visual settings
+        this.gameplayZoom = 1.0;
+        this.bloomEnabled = true;
+        this.bloomIntensity = 0.5;
+        this.noteColors = {
+            regular: 0xFF69B4,
+            hold: 0xFFD700,
+            chain: 0x00CED1,
+            multi: 0xFFD700,
+            slide: 0x9370DB,
+            flick: 0xFF6347
+        };
 
         // Combo Text
         this.comboText = new PIXI.Text('0x', {
@@ -93,7 +157,6 @@ export class Gameplay {
         this.activeNotes.forEach(a => {
             if (a.sprite) a.sprite.destroy();
             if (a.ring) a.ring.destroy();
-            if (a.ringGlow) a.ringGlow.destroy();
             if (a.arc) a.arc.destroy();
         });
         this.activeNotes = [];
@@ -108,7 +171,6 @@ export class Gameplay {
         this.activeNotes.forEach(a => {
             if (a.sprite) a.sprite.destroy();
             if (a.ring) a.ring.destroy();
-            if (a.ringGlow) a.ringGlow.destroy();
             if (a.arc) a.arc.destroy();
         });
         this.activeNotes = [];
@@ -132,8 +194,8 @@ export class Gameplay {
             this.hexAnimations.push({ hex, startTime: performance.now(), duration: 160, originalScale, targetScale: originalScale * 1.1 });
         }
         this.zoneLastHit[zone] = performance.now();
-        // Show a 'perfect' feedback for visual effect, doesn't affect score
-        showHitFeedback(this, 'perfect', zone);
+        // Hit feedback disabled for editor
+        // showHitFeedback(this, 'perfect', zone);
     }
 
     start() {
@@ -153,6 +215,66 @@ export class Gameplay {
         this.app.ticker.remove(this._update, this);
     }
 
+    // Preview notes at a specific time (for scrubbing when paused)
+    previewAtTime(timeMs) {
+        if (this.running) return; // Only preview when stopped
+
+        const tuning = VisualTuning;
+        const previewWindow = 2000; // Show notes within 2 seconds
+
+        // Clear existing preview notes
+        for (let i = this.activeNotes.length - 1; i >= 0; i--) {
+            const a = this.activeNotes[i];
+            if (a.sprite) a.sprite.destroy();
+            if (a.ring) a.ring.destroy();
+            if (a.arc) a.arc.destroy();
+        }
+        this.activeNotes = [];
+
+        // Find and display notes near current time
+        if (this.chart && this.chart.notes) {
+            for (const note of this.chart.notes) {
+                const timeDiff = note.time - timeMs;
+
+                // Show notes within preview window
+                if (timeDiff >= -500 && timeDiff <= previewWindow) {
+                    const progress = 1 - (timeDiff / this.approachTime);
+                    const pos = this.zonePositions[note.zone];
+
+                    if (!pos) continue;
+
+                    // Create note sprite
+                    const sprite = new PIXI.Graphics();
+                    sprite.beginFill(0x00ffff, 0.8);
+                    sprite.drawCircle(0, 0, tuning.noteRadius);
+                    sprite.endFill();
+                    sprite.x = pos.x;
+                    sprite.y = pos.y;
+
+                    // Create approach ring
+                    const ring = new PIXI.Graphics();
+                    const ringProgress = Math.max(0, Math.min(1, progress));
+                    const ringRadius = tuning.noteRadius + (tuning.approachRingMaxRadius - tuning.noteRadius) * (1 - ringProgress);
+                    ring.lineStyle(3, 0x00ffff, 0.6);
+                    ring.drawCircle(0, 0, ringRadius);
+                    ring.x = pos.x;
+                    ring.y = pos.y;
+
+                    this.noteLayer.addChild(ring);
+                    this.noteLayer.addChild(sprite);
+
+                    this.activeNotes.push({
+                        sprite: sprite,
+                        ring: ring,
+                        zone: note.zone,
+                        targetTime: note.time,
+                        isPreview: true
+                    });
+                }
+            }
+        }
+    }
+
     destroy() {
         this.stop();
         if (this._app) {
@@ -162,11 +284,10 @@ export class Gameplay {
         this.activeNotes = [];
         this.activeParticles = [];
         this.hexAnimations = [];
-        this.hexShakeAnimations = []; // Re-added for shakeHex
+        this.hexShakeAnimations = [];
         this.parent = null;
         this.input = null;
         this.settings = null;
-        console.log('Gameplay instance destroyed.');
     }
 
     _createHexGrid() {
@@ -196,10 +317,10 @@ export class Gameplay {
         tryHit(this, zone);
     }
 
-
-
     _update(delta) {
         const now = this._now();
+        const tuning = VisualTuning;
+        const time = performance.now() / 1000;
 
         // Schedule notes from chart
         if (this.chart && this.chart.notes && this.scheduledIndex < this.chart.notes.length) {
@@ -219,7 +340,7 @@ export class Gameplay {
             }
         }
 
-        // Update active notes
+        // Update active notes with enhanced visuals
         for (let i = this.activeNotes.length - 1; i >= 0; i--) {
             const a = this.activeNotes[i];
             const progress = (now - (a.targetTime - this.approachTime)) / this.approachTime;
@@ -228,110 +349,244 @@ export class Gameplay {
             if (!pos) {
                 if (a.sprite) a.sprite.destroy();
                 if (a.ring) a.ring.destroy();
+                if (a.arc) a.arc.destroy();
                 this.activeNotes.splice(i, 1);
                 continue;
             }
 
             // Note is off-screen (missed), remove it
             if (progress >= 1.1) {
-                showHitFeedback(this, 'perfect', a.zone); // Treat miss as perfect for visual feedback
                 if (a.sprite) a.sprite.destroy();
                 if (a.ring) a.ring.destroy();
-                if (a.ringGlow) a.ringGlow.destroy();
                 if (a.arc) a.arc.destroy();
                 this.activeNotes.splice(i, 1);
                 continue;
             }
 
+            // Trigger incoming flash and sound
+            if (!a.incomingSoundPlayed && progress > 0.95) {
+                soundManager.play('incoming');
+                this.incomingFlashes[a.zone] = performance.now();
+                a.incomingSoundPlayed = true;
+            }
+
             // Autoplay hit detection
-            const hitThreshold = 0.98; // When the note is very close to the hit line
+            const hitThreshold = 0.98;
             if (progress >= hitThreshold && !a.hit) {
-                showHitFeedback(this, 'perfect', a.zone); // Show perfect feedback
-                soundManager.play('perfect'); // Play perfect sound
-                a.hit = true; // Mark as hit to prevent multiple triggers
-                // Remove the note visually and from activeNotes after a short delay
+                soundManager.play('perfect');
+                a.hit = true;
                 setTimeout(() => {
                     if (a.sprite) a.sprite.destroy();
                     if (a.ring) a.ring.destroy();
-                    if (a.ringGlow) a.ringGlow.destroy();
                     if (a.arc) a.arc.destroy();
                     const index = this.activeNotes.indexOf(a);
                     if (index > -1) {
                         this.activeNotes.splice(index, 1);
                     }
-                }, 100); // Short delay for visual effect
+                }, 100);
                 continue;
             }
 
             const t = Math.max(0, Math.min(1, progress));
 
+            // Note body fade-in with enhanced alpha curve
             a.sprite.x = pos.x;
             a.sprite.y = pos.y;
-            a.sprite.alpha = Math.min(1, t * 2);
+            const bodyAlpha = Math.min(1, t * tuning.timing.noteApproach.bodyAlphaMultiplier);
+            a.sprite.alpha = Math.max(0, Math.min(1, bodyAlpha));
 
+            // Enhanced approach ring with rush effect
             if (a.ring) {
-                a.ring.x = pos.x; a.ring.y = pos.y;
-                const easedT = t * t; // Quadratic ease-in for a "rush" effect
-                const ringScale = 2.2 - (1.2 * easedT); // 2.2 -> 1.0
-                a.ring.scale.set(Math.max(0.2, Math.min(2.2, ringScale)));
-                a.ring.alpha = Math.pow(t, 3) * 0.95;
+                a.ring.x = pos.x;
+                a.ring.y = pos.y;
+
+                // Quadratic ease-in for rush effect
+                const easedT = t * t;
+                const scaleRange = tuning.timing.noteApproach.ringStartScale - tuning.timing.noteApproach.ringEndScale;
+                const ringScale = tuning.timing.noteApproach.ringStartScale - (scaleRange * easedT);
+                a.ring.scale.set(Math.max(
+                    tuning.timing.noteApproach.ringMinScale,
+                    Math.min(tuning.timing.noteApproach.ringMaxScale, ringScale)
+                ));
+
+                // Enhanced alpha with power curve
+                a.ring.alpha = Math.min(1.0, Math.pow(t, tuning.timing.noteApproach.ringAlphaPower) * tuning.timing.noteApproach.ringAlphaMultiplier);
+
+                // Update note body alpha to fade in (body is stored as 'sprite')
+                if (a.sprite) {
+                    a.sprite.alpha = Math.min(1.0, Math.pow(t, 0.5) * 1.2); // Fade in brighter and faster
+                }
+
+                // Add dynamic glow effect to ring
+                if (!a.ring.isTextureRing) {
+                    const glowIntensity = Math.pow(t, 1.5);
+                    const baseLineWidth = tuning.visual.note.approachRingLineWidth;
+
+                    a.ring.clear();
+
+                    // Outer glow stroke
+                    if (glowIntensity > 0.1) {
+                        const glowWidth = baseLineWidth + (glowIntensity * 6);
+                        a.ring.lineStyle(glowWidth, tuning.colors.approachRing, glowIntensity * 0.4);
+                        this._drawHex(a.ring, 0, 0, this.zoneRadius);
+                    }
+
+                    // Main ring stroke
+                    a.ring.lineStyle(baseLineWidth, tuning.colors.approachRing, tuning.visual.note.approachRingAlpha);
+                    this._drawHex(a.ring, 0, 0, this.zoneRadius);
+                }
             }
-            if (a.ringGlow) {
-                a.ringGlow.x = pos.x; a.ringGlow.y = pos.y;
-                a.ringGlow.alpha = 0.25 * (1 - t);
-                a.ringGlow.scale.set(1.0 + 0.15 * (1 - t));
+
+            // Enhanced timing arc
+            if (a.arc) {
+                a.arc.x = pos.x;
+                a.arc.y = pos.y;
+                const vis = Math.max(0, (t - tuning.timing.noteApproach.arcVisibilityStart) * 2);
+                a.arc.alpha = vis * tuning.timing.noteApproach.arcAlpha;
+
+                // Redraw arc as partial circle
+                const frac = Math.max(0.02, 1 - t);
+                a.arc.clear();
+                a.arc.lineStyle(tuning.visual.note.timingArcLineWidth, tuning.colors.timingArc, tuning.timing.noteApproach.arcAlpha);
+
+                const r = this.zoneRadius * tuning.visual.note.timingArcRadius;
+                const steps = 64;
+                const endAng = Math.PI * 2 * frac;
+                a.arc.moveTo(r, 0);
+                for (let s = 0; s <= steps * frac; s++) {
+                    const ang = (s / steps) * endAng;
+                    a.arc.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+                }
             }
         }
 
-        // Animate particles
+        // Animate particles with gravity
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const p = this.activeParticles[i];
-            p.life -= 16 * (delta || 1);
-            if (p.life <= 0) {
-                if (p.glow) p.glow.destroy();
-                p.sprite.destroy();
-                this.activeParticles.splice(i, 1);
-                continue;
-            }
+            p.life -= tuning.timing.particles.lifeDecay * (delta || 1);
             p.x += p.vx * (delta || 1);
             p.y += p.vy * (delta || 1);
-            p.sprite.x = p.x; p.sprite.y = p.y;
-            p.sprite.alpha = p.life / p.maxLife;
-            p.sprite.scale.set(1 + (1 - p.life / p.maxLife) * 0.6);
-            if (p.glow) {
-                p.glow.x = p.x; p.glow.y = p.y;
-                p.glow.alpha = (p.life / p.maxLife) * 0.45;
-                p.glow.scale.set(1 + (1 - p.life / p.maxLife) * 0.8);
+            p.vy += tuning.timing.particles.gravity;
+            p.sprite.x = p.x;
+            p.sprite.y = p.y;
+            p.sprite.alpha = Math.max(0, p.life / p.maxLife);
+            p.sprite.scale.set(1 + (1 - p.life / p.maxLife) * tuning.timing.particles.scaleMultiplier);
+
+            if (p.life <= 0) {
+                p.sprite.destroy();
+                this.activeParticles.splice(i, 1);
             }
         }
 
-        // Animate zone glows
-        const time = performance.now() / 1000;
+        // Enhanced zone glows with idle pulse, hit pulse, and incoming flash
         for (let zi = 0; zi < this.zoneGlows.length; zi++) {
             const g = this.zoneGlows[zi];
-            const idle = 0.03 * Math.sin(time * 2 + zi);
+
+            // Idle breathing animation
+            const idle = 0.03 * Math.sin(time * tuning.timing.hexZone.glowIdleSpeed + zi);
+
+            // Hit pulse effect
             const sinceHit = (performance.now() - (this.zoneLastHit[zi] || 0));
-            const hitPulse = sinceHit < 600 ? (1 - sinceHit / 600) * 0.6 : 0;
+            const hitPulse = sinceHit < tuning.timing.hexZone.glowHitPulseDuration ?
+                (1 - sinceHit / tuning.timing.hexZone.glowHitPulseDuration) * tuning.timing.hexZone.glowHitPulseIntensity : 0;
+
+            // Incoming note flash effect
+            let incomingFlash = 0;
+            if (this.incomingFlashes[zi] !== null) {
+                const timeSinceFlash = performance.now() - this.incomingFlashes[zi];
+                if (timeSinceFlash < tuning.timing.hexZone.incomingFlashDuration) {
+                    const flashProgress = timeSinceFlash / tuning.timing.hexZone.incomingFlashDuration;
+                    incomingFlash = (1 - flashProgress) * tuning.timing.hexZone.incomingFlashIntensity;
+                } else {
+                    this.incomingFlashes[zi] = null;
+                }
+            }
+
             g.scale.set(1 + idle + hitPulse);
-            g.alpha = 0.2 + hitPulse * 0.6;
+            g.alpha = tuning.timing.hexZone.glowBaseAlpha + hitPulse * tuning.timing.hexZone.glowHitPulseIntensity + incomingFlash;
         }
 
-        // Animate hexagons (press bounce)
+        // Enhanced bloom blobs with smooth pulsing based on incoming notes
+        if (this.zoneBlooms && this.zoneBlooms.length > 0) {
+            for (let i = 0; i < this.zoneBlooms.length; i++) {
+                const b = this.zoneBlooms[i];
+                if (!b) continue;
+
+                // Disable pointer follow for editor (keep blooms static)
+                const targetX = this.zonePositions[i].x;
+                const targetY = this.zonePositions[i].y;
+                b.x += (targetX - b.x) * 0.08;
+                b.y += (targetY - b.y) * 0.08;
+                b.rotation = Math.sin(time + i) * 0.02;
+
+                b.visible = true;
+
+                // Check for incoming notes and calculate bloom pulse
+                let maxNoteProgress = 0;
+                for (const note of this.activeNotes) {
+                    if (note.zone === i) {
+                        const progress = (now - (note.targetTime - this.approachTime)) / this.approachTime;
+                        if (progress >= 0.5 && progress <= 1.0) {
+                            maxNoteProgress = Math.max(maxNoteProgress, progress);
+                        }
+                    }
+                }
+
+                // Calculate target bloom values
+                if (maxNoteProgress > 0.5) {
+                    const pulseProgress = (maxNoteProgress - 0.5) * 2;
+                    const pulsePower = Math.pow(pulseProgress, 1.5);
+                    const scaleBoost = pulsePower * 0.3;
+                    const alphaBoost = pulsePower * 0.6;
+
+                    this.bloomTargetScale[i] = 1.0 + scaleBoost;
+                    this.bloomTargetAlpha[i] = alphaBoost;
+                } else {
+                    this.bloomTargetScale[i] = 1.0;
+                    this.bloomTargetAlpha[i] = 0;
+                }
+
+                // Smooth interpolation (fast approach, slow fade)
+                const lerpSpeed = (this.bloomCurrentScale[i] < this.bloomTargetScale[i]) ? 0.15 : 0.04;
+                this.bloomCurrentScale[i] += (this.bloomTargetScale[i] - this.bloomCurrentScale[i]) * lerpSpeed;
+                this.bloomCurrentAlpha[i] += (this.bloomTargetAlpha[i] - this.bloomCurrentAlpha[i]) * lerpSpeed;
+
+                // Apply smoothed values
+                b.scale.set(this.bloomCurrentScale[i]);
+                b.alpha = tuning.timing.hexZone.bloomAlpha + this.bloomCurrentAlpha[i];
+            }
+        }
+
+        // Background parallax animation (cursor movement disabled for editor)
+        if (this.starLayer) {
+            // Only sine wave drift, no cursor tracking
+            this.starLayer.x = Math.sin(time * 0.2) * 6;
+            this.starLayer.y = Math.cos(time * 0.17) * 4;
+        }
+
+        // Keep background sized (if present)
+        if (typeof this._updateBackgroundLayout === 'function') {
+            this._updateBackgroundLayout();
+        }
+
+        // Animate hexagons (press bounce with smooth easing)
         for (let i = this.hexAnimations.length - 1; i >= 0; i--) {
             const anim = this.hexAnimations[i];
             const elapsed = performance.now() - anim.startTime;
             const t = Math.min(1, elapsed / anim.duration);
 
+            if (t < 0.5) {
+                const scale = anim.originalScale + (anim.targetScale - anim.originalScale) * (t * 2);
+                anim.hex.scale.set(scale);
+            } else {
+                const scale = anim.targetScale + (anim.originalScale - anim.targetScale) * ((t - 0.5) * 2);
+                anim.hex.scale.set(scale);
+            }
+
             if (t >= 1) {
                 anim.hex.scale.set(anim.originalScale);
                 this.hexAnimations.splice(i, 1);
-                continue;
             }
-
-            // Simple bounce: scale up then back down
-            const scaleT = t < 0.5 ? t * 2 : 1 - ((t - 0.5) * 2);
-            const scale = anim.originalScale + (anim.targetScale - anim.originalScale) * scaleT;
-            anim.hex.scale.set(scale);
         }
 
         // Animate hex shakes
@@ -353,16 +608,21 @@ export class Gameplay {
             }
         }
 
-        // input handling for visual feedback and hit detection
+        // Input handling for visual feedback
         const pressedZones = (this.input && this.input.getPressedZones) ? this.input.getPressedZones() : [];
         for (const z of pressedZones) {
             const hex = this._getZoneHex(z);
             if (hex) {
                 this.hexAnimations = this.hexAnimations.filter(a => a.hex !== hex);
                 const originalScale = hex.scale.x || 1;
-                this.hexAnimations.push({ hex, startTime: performance.now(), duration: 160, originalScale, targetScale: originalScale * 1.1 });
+                this.hexAnimations.push({
+                    hex,
+                    startTime: performance.now(),
+                    duration: tuning.timing.hexZone.bounceDuration,
+                    originalScale,
+                    targetScale: originalScale * tuning.timing.hexZone.bounceScale
+                });
             }
-            // Call _tryHit for actual hit detection
             this._tryHit(z);
         }
     }
@@ -381,5 +641,56 @@ export class Gameplay {
             }
             return closest;
         } catch { return null; }
+    }
+
+    /**
+     * Set gameplay area zoom level
+     * @param {number} zoom - Zoom level (0.5 to 2.0)
+     */
+    setZoom(zoom) {
+        this.gameplayZoom = Math.max(0.5, Math.min(2.0, zoom));
+        if (this.hexGroup) {
+            this.hexGroup.scale.set(this.gameplayZoom);
+        }
+        if (this.glowLayer) {
+            this.glowLayer.scale.set(this.gameplayZoom);
+        }
+    }
+
+    /**
+     * Enable or disable bloom effect
+     * @param {boolean} enabled
+     */
+    setBloomEnabled(enabled) {
+        this.bloomEnabled = enabled;
+    }
+
+    /**
+     * Set bloom intensity
+     * @param {number} intensity - Intensity (0.0 to 1.0)
+     */
+    setBloomIntensity(intensity) {
+        this.bloomIntensity = Math.max(0, Math.min(1, intensity));
+    }
+
+    /**
+     * Set color for a specific note type
+     * @param {string} noteType - Note type (regular, hold, chain, multi, slide, flick)
+     * @param {string} color - Hex color string (e.g., '#FF69B4')
+     */
+    setNoteColor(noteType, color) {
+        // Convert hex string to number
+        const colorNum = parseInt(color.replace('#', ''), 16);
+        this.noteColors[noteType] = colorNum;
+    }
+
+    /**
+     * Set all note colors at once
+     * @param {Object} colors - Object with note type keys and hex color values
+     */
+    setNoteColors(colors) {
+        Object.keys(colors).forEach(noteType => {
+            this.setNoteColor(noteType, colors[noteType]);
+        });
     }
 }

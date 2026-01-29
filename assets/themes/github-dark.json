@@ -1,0 +1,31 @@
+{
+  "name": "GitHub Dark",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#0d1117",
+    "editor.foreground": "#c9d1d9",
+    "activityBar.background": "#010409",
+    "activityBar.foreground": "#c9d1d9",
+    "sideBar.background": "#010409",
+    "sideBar.foreground": "#c9d1d9",
+    "statusBar.background": "#010409",
+    "statusBar.foreground": "#c9d1d9",
+    "titleBar.activeBackground": "#010409",
+    "titleBar.activeForeground": "#c9d1d9",
+    "panel.background": "#010409",
+    "panel.border": "#30363d",
+    "terminal.background": "#0d1117",
+    "terminal.foreground": "#c9d1d9",
+    "editorWidget.background": "#161b22",
+    "editorWidget.border": "#30363d",
+    "input.background": "#0d1117",
+    "input.foreground": "#c9d1d9",
+    "input.border": "#30363d",
+    "button.background": "#238636",
+    "button.foreground": "#ffffff",
+    "button.hoverBackground": "#2ea043",
+    "list.activeSelectionBackground": "#1f6feb",
+    "list.activeSelectionForeground": "#ffffff",
+    "list.hoverBackground": "#161b2280"
+  }
+}

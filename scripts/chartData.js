@@ -38,19 +38,28 @@ export class ChartData {
             if (note.zone === undefined) throw new Error(`Note ${i} missing zone`);
 
             // Validate note types and their required data
+            // Auto-fix invalid notes instead of throwing errors
             if (note.type) {
                 switch (note.type) {
                     case 'hold':
-                        if (!note.hold?.duration) throw new Error(`Hold note ${i} missing duration`);
+                        if (!note.hold?.duration) {
+                            note.type = 'regular';
+                            delete note.hold;
+                        }
                         break;
                     case 'chain':
                         if (!note.chainData?.length || !note.chainData?.interval) {
-                            throw new Error(`Chain note ${i} missing chain data`);
+                            note.type = 'regular';
+                            delete note.chainData;
                         }
                         break;
                     case 'multi':
                         if (!Array.isArray(note.zone)) {
-                            throw new Error(`Multi note ${i} zone must be array`);
+                            note.type = 'regular';
+                            // Keep first zone if zone is a number
+                            if (typeof note.zone === 'number') {
+                                // Already valid single zone
+                            }
                         }
                         break;
                 }
@@ -85,7 +94,6 @@ export class ChartData {
             const msPerBeat = 60000 / change.bpm;
 
             if (!isFinite(msPerBeat) || msPerBeat <= 0) {
-                console.warn(`Invalid BPM value (${change.bpm}) at time ${change.time}. Skipping this BPM segment.`);
                 return;
             }
 
@@ -127,6 +135,15 @@ export class ChartData {
             );
 
         return this.beatMap.get(closestTime);
+    }
+
+    getSnappedTime(time, bpm, snapDivision) {
+        if (snapDivision <= 0) return time; // Avoid division by zero or invalid snap
+
+        const msPerBeat = 60000 / bpm;
+        const snapInterval = msPerBeat / snapDivision;
+
+        return Math.round(time / snapInterval) * snapInterval;
     }
 
     // Get note counts by type for statistics

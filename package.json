@@ -1,7 +1,7 @@
 {
   "name": "dsx-editor",
-  "version": "3.0.0",
-  "description": "A rhythm game chart editor for DreamSyncX. BETA RELEASE.",
+  "version": "4.0.0",
+  "description": "A rhythm game chart editor for DreamSyncX.",
   "main": "main.js",
   "scripts": {
     "test": "jest",
@@ -20,9 +20,9 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.redevoncommunity.dsx.editor",
-    "productName": "DreamSyncX Chart Editor",
-    "copyright": "Copyright © 2025 Redevon Community. All rights reserved.",
+    "appId": "com.kynix.dsx.editor",
+    "productName": "DreamSync Studio 4",
+    "copyright": "Copyright © 2026 Redevon Community. All rights reserved.",
     "files": [
       "**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
@@ -32,8 +32,8 @@
         "nsis"
       ],
       "icon": "assets/icon/dsxicon256.ico",
-      "forceCodeSigning": false,
-      "signAndEditExecutable": false
+      "publisherName": "Redevon Studios",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,

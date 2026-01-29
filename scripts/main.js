@@ -16,16 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     } catch (e) {
-        console.error('Failed to apply saved settings on load:', e);
     }
 
     const editorCanvasContainer = document.getElementById('editor-canvas-container');
     const timelineContainer = document.getElementById('timeline-container');
     const sidebarContainer = document.getElementById('sidebar-content');
     const toolbarContainer = document.getElementById('editor-toolbar');
+    const iconbarContainer = document.getElementById('iconbar');
 
-    if (!editorCanvasContainer || !timelineContainer || !sidebarContainer || !toolbarContainer) {
-        console.error('One or more critical UI containers are missing. Please check the HTML structure.');
+    if (!editorCanvasContainer || !timelineContainer || !sidebarContainer || !toolbarContainer || !iconbarContainer) {
         return;
     }
 
@@ -33,7 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
         editorCanvasContainer,
         timelineContainer,
         sidebarContainer,
-        toolbarContainer
+        toolbarContainer,
+        iconbarContainer
     });
 
     // Initialize the editor

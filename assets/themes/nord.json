@@ -1,0 +1,31 @@
+{
+  "name": "Nord",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#2e3440",
+    "editor.foreground": "#d8dee9",
+    "activityBar.background": "#2e3440",
+    "activityBar.foreground": "#d8dee9",
+    "sideBar.background": "#2e3440",
+    "sideBar.foreground": "#d8dee9",
+    "statusBar.background": "#3b4252",
+    "statusBar.foreground": "#d8dee9",
+    "titleBar.activeBackground": "#2e3440",
+    "titleBar.activeForeground": "#d8dee9",
+    "panel.background": "#2e3440",
+    "panel.border": "#3b4252",
+    "terminal.background": "#2e3440",
+    "terminal.foreground": "#d8dee9",
+    "editorWidget.background": "#3b4252",
+    "editorWidget.border": "#434c5e",
+    "input.background": "#3b4252",
+    "input.foreground": "#d8dee9",
+    "input.border": "#4c566a",
+    "button.background": "#88c0d0",
+    "button.foreground": "#2e3440",
+    "button.hoverBackground": "#81a1c1",
+    "list.activeSelectionBackground": "#434c5e",
+    "list.activeSelectionForeground": "#d8dee9",
+    "list.hoverBackground": "#434c5e80"
+  }
+}

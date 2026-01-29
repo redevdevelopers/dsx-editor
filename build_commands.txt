@@ -6,7 +6,7 @@ npm install
 
 ## 2. Run in Development Mode
 # Use this to open the app locally for testing and development.
-npm startn
+npx electron .
 
 ## 3. Build the Installer
 # This command packages the application and creates the Windows installer (.exe).

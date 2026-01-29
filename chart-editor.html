@@ -3,31 +3,291 @@
 
 <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="assets/icon/dsxicon256.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DreamSyncX Chart Editor</title>
+    <title>DreamSync Studio 4</title>
     <link rel="stylesheet" href="styles/styles.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 
 <body>
     <div id="app-container">
+        <!-- Header -->
         <header id="app-header">
-            <h1>DreamSyncX Chart Editor Developer</h1>
-            <div id="editor-toolbar"></div>
+            <h1>
+                <img src="assets/icon/dsxicon256.ico" width="20" height="20" style="margin-right: 8px; vertical-align: middle;" alt="DSX Icon">
+                DreamSync Studio 4
+            </h1>
+            <div class="header-actions">
+                <button class="button ghost" id="header-automap-btn" title="AI Generate Chart">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                    </svg>
+                    AI Generate
+                </button>
+                <button class="button ghost" id="header-import-btn">Import</button>
+                <button class="button primary" id="header-export-btn">Export</button>
+            </div>
         </header>
+
+        <!-- Toolbar -->
+        <div id="editor-toolbar"></div>
+
+        <!-- Icon Bar -->
+        <div id="iconbar"></div>
+
+        <!-- Main Content Area -->
         <main id="main-content">
-            <div id="editor-canvas-container">
-                <!-- The PixiJS canvas for the gameplay view will go here -->
-            </div>
-            <div id="timeline-container">
-                <!-- The timeline canvas will go here -->
-            </div>
+            <div id="editor-canvas-container"></div>
+            <div id="timeline-container"></div>
         </main>
+
+        <!-- Sidebar -->
         <aside id="sidebar">
             <div id="sidebar-content"></div>
         </aside>
+
+        <!-- Status Bar -->
+        <div id="statusbar">
+            <button class="status-settings-btn" id="status-settings-btn" title="Settings">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+            </button>
+            <div class="status-left">
+                <div class="status-item">
+                    <span id="status-notes">0 notes</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-duration">0:00</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-bpm">120 BPM</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-autosave">Auto-save: Off</span>
+                </div>
+            </div>
+            <div class="status-center">
+                <div class="status-shortcuts">
+                    <span class="shortcut-item"><kbd>LClick</kbd> Place/Hold</span>
+                    <span class="shortcut-item"><kbd>RClick</kbd> Delete</span>
+                    <span class="shortcut-item"><kbd>Space</kbd> Play/Pause</span>
+                    <span class="shortcut-item"><kbd>←</kbd><kbd>→</kbd> Seek</span>
+                    <span class="shortcut-item"><kbd>M</kbd> Marker</span>
+                    <span class="shortcut-item"><kbd>Shift</kbd> Hold/Select</span>
+                    <span class="shortcut-item"><kbd>S</kbd> Snap</span>
+                    <span class="shortcut-item"><kbd>Ctrl+Z</kbd> Undo</span>
+                    <span class="shortcut-item"><kbd>Ctrl+Y</kbd> Redo</span>
+                    <span class="shortcut-item"><kbd>Del</kbd> Delete</span>
+                    <span class="shortcut-item"><kbd>F11</kbd> Fullscreen</span>
+                </div>
+            </div>
+            <div class="status-right">
+                <div class="status-item">
+                    <span id="status-fps">FPS: 0 / 0</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-zoom">100%</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-snap">Snap: 1/4</span>
+                </div>
+                <div class="status-item">
+                    <span id="status-message">Ready</span>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content settings-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle; margin-right: 8px;">
+                            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </svg>
+                        Settings
+                    </h2>
+                    <p style="margin: 4px 0 0 28px; font-size: 12px; opacity: 0.6;">DreamSyncX Studio v4.0 RELEASE_BUILD (30/1/2026) </p>
+                </div>
+                <button class="modal-close" id="settings-modal-close">&times;</button>
+            </div>
+            <div class="modal-body settings-modal-body">
+                <div class="settings-section">
+                    <h3>Editor</h3>
+                    <div class="setting-row">
+                        <label>Auto-save Interval (seconds)</label>
+                        <input type="number" id="setting-autosave" min="10" max="300" value="30" />
+                    </div>
+                    <div class="setting-row">
+                        <label>Grid Snap Division</label>
+                        <select id="setting-snap">
+                            <option value="4">1/4</option>
+                            <option value="8">1/8</option>
+                            <option value="12">1/12</option>
+                            <option value="16">1/16</option>
+                            <option value="24">1/24</option>
+                            <option value="32">1/32</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>Show FPS Counter</label>
+                        <input type="checkbox" id="setting-show-fps" checked />
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Audio</h3>
+                    <div class="setting-row">
+                        <label>Master Volume (%)</label>
+                        <input type="number" id="setting-master-volume" min="0" max="100" value="100" />
+                    </div>
+                    <div class="setting-row">
+                        <label>Metronome Volume (%)</label>
+                        <input type="number" id="setting-metronome-volume" min="0" max="100" value="50" />
+                    </div>
+                    <div class="setting-row">
+                        <label>Audio Latency Offset (ms)</label>
+                        <input type="number" id="setting-audio-latency" min="-200" max="200" value="0" />
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Appearance</h3>
+                    <div class="setting-row-full">
+                        <label style="margin-bottom: 12px; display: block; font-weight: 600;">Theme</label>
+                        <div class="theme-grid">
+                            <div class="theme-option" data-theme="dark">
+                                <div class="theme-preview theme-preview-dark">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="dark" id="theme-dark">
+                                <label for="theme-dark">Dark</label>
+                            </div>
+                            <div class="theme-option" data-theme="light">
+                                <div class="theme-preview theme-preview-light">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="light" id="theme-light">
+                                <label for="theme-light">Light</label>
+                            </div>
+                            <div class="theme-option" data-theme="oled">
+                                <div class="theme-preview theme-preview-oled">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="oled" id="theme-oled">
+                                <label for="theme-oled">OLED</label>
+                            </div>
+                            <div class="theme-option" data-theme="high-contrast">
+                                <div class="theme-preview theme-preview-high-contrast">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="high-contrast" id="theme-high-contrast">
+                                <label for="theme-high-contrast">High Contrast</label>
+                            </div>
+                            <div class="theme-option" data-theme="dracula" data-builtin="true">
+                                <div class="theme-preview theme-preview-dracula">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="dracula" id="theme-dracula">
+                                <label for="theme-dracula">Dracula</label>
+                            </div>
+                            <div class="theme-option" data-theme="monokai" data-builtin="true">
+                                <div class="theme-preview theme-preview-monokai">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="monokai" id="theme-monokai">
+                                <label for="theme-monokai">Monokai</label>
+                            </div>
+                            <div class="theme-option" data-theme="tokyo-night" data-builtin="true">
+                                <div class="theme-preview theme-preview-tokyo-night">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="tokyo-night" id="theme-tokyo-night">
+                                <label for="theme-tokyo-night">Tokyo Night</label>
+                            </div>
+                            <div class="theme-option" data-theme="nord" data-builtin="true">
+                                <div class="theme-preview theme-preview-nord">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="nord" id="theme-nord">
+                                <label for="theme-nord">Nord</label>
+                            </div>
+                            <div class="theme-option" data-theme="solarized-dark" data-builtin="true">
+                                <div class="theme-preview theme-preview-solarized-dark">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="solarized-dark" id="theme-solarized-dark">
+                                <label for="theme-solarized-dark">Solarized Dark</label>
+                            </div>
+                            <div class="theme-option" data-theme="github-dark" data-builtin="true">
+                                <div class="theme-preview theme-preview-github-dark">
+                                    <div class="theme-preview-header"></div>
+                                    <div class="theme-preview-bar"></div>
+                                    <div class="theme-preview-bar short"></div>
+                                </div>
+                                <input type="radio" name="setting-theme" value="github-dark" id="theme-github-dark">
+                                <label for="theme-github-dark">GitHub Dark</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <label>Note Color Scheme</label>
+                        <select id="setting-note-colors">
+                            <option value="default">Default</option>
+                            <option value="rainbow">Rainbow</option>
+                            <option value="monochrome">Monochrome</option>
+                        </select>
+                    </div>
+                    <div class="setting-row" style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px;">
+                        <label>Import Custom Theme</label>
+                        <button class="button ghost" id="setting-import-theme" style="width: auto;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                            </svg>
+                            Import Theme File
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Advanced</h3>
+                    <div class="setting-row">
+                        <label>Performance Mode</label>
+                        <input type="checkbox" id="setting-performance-mode" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button ghost" id="settings-reset">Reset to Defaults</button>
+                <button class="button primary" id="settings-save">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="scripts/main.js"></script>
 </body>
 

@@ -35,7 +35,6 @@ export class AudioAnalyzer {
 
             return true;
         } catch (error) {
-            console.error('Error loading audio as buffer:', error);
             return false;
         }
     }
@@ -68,7 +67,6 @@ export class AudioAnalyzer {
             if (autoplay) audio.play().catch(() => { });
             return true;
         } catch (err) {
-            console.error('Failed to load audio via media element:', err);
             return false;
         }
     }
@@ -98,18 +96,14 @@ export class AudioAnalyzer {
     }
 
     stop() {
-        console.log('AudioAnalyzer.stop() called.');
         if (this._mediaElement) {
-            console.log('Stopping media element.');
-            try { this._mediaElement.pause(); } catch (e) { console.error('Error pausing media element:', e); }
+            try { this._mediaElement.pause(); } catch (e) {}
             return;
         }
         if (this.source) {
-            console.log('Stopping buffer source.');
             try {
                 this.source.stop();
             } catch (e) {
-                console.error('Error stopping buffer source:', e);
             }
             this.source.started = false;
         }
