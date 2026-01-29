@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="500" alt="DreamSync Studio logo" src="dssgithublogo.png">
+</p>
+
 # DreamSync Studio 4
 
 Professional chart editor for DreamSyncX with AI-powered auto-mapping capabilities.
