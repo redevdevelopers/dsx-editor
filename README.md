@@ -1,13 +1,12 @@
-# DreamSyncX Chart Editor
+# DreamSync Studio 4
 
 Professional chart editor for DreamSyncX with AI-powered auto-mapping capabilities.
 
-**Version 4.0.0** - Production-ready release with enhanced UI/UX, 10 built-in themes, and comprehensive first-time setup experience.
+**Version 4.0** - Production-ready release with enhanced UI/UX, 10 built-in themes, and comprehensive first-time setup experience.
 
-## What's New in v4.0.0
+## What's New in v4.0
 
 ### 🎨 Enhanced User Experience
-- **First-Time Setup Wizard** - Modern Windows 11-inspired onboarding with feature highlights, EULA, and keyboard shortcuts guide
 - **10 Built-in Themes** - Choose from Light, Dark, OLED, High Contrast, Dracula, Monokai, Tokyo Night, Nord, Solarized Dark, and GitHub Dark
 - **Professional Menu Bar** - Complete menu system with File, Edit, View, Playback, Tools, and Help menus
 - **Fully Resizable Window** - Discord-style window management with smooth loading
@@ -370,22 +369,9 @@ Currently exports to DSX JSON format only.
 
 ---
 
-## Future Improvements
-
-See `NEXT_GENERATION_IMPROVEMENTS.md` for planned features:
-- Section escalation (chorus 1 vs chorus 2)
-- Intentional silence rules
-- Showcase moment detection
-- Zone role assignment
-- Expression modes (flow-heavy, tech-heavy, etc.)
-- Humanizing micro-timing
-- Pattern memory across phrases
-
----
-
 ## Credits
 
-**DreamSyncX Chart Editor v4.0.0**
+**DreamSync Studio 4**
 - Developed by **Kynix Teams** for the DreamSyncX rhythm game
 - AI training system inspired by osu!mania and maimai
 - Built with Electron, PixiJS, and Web Audio API
