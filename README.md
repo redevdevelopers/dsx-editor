@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="500" alt="DreamSync Studio logo" src="dssgithublogo.png">
+  <img width="1000" alt="DreamSync Studio logo" src="dssgithublogo.png">
 </p>
 
 # DreamSync Studio 4
