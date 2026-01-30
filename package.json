@@ -11,13 +11,12 @@
   "keywords": [],
   "author": "Kyrilla@Redevon",
   "license": "MIT",
-  "dependencies": {
-    "jest": "^30.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/pixi.js": "^5.0.0",
     "electron": "^31.2.1",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "jest": "^30.2.0"
   },
   "build": {
     "appId": "com.kynix.dsx.editor",
@@ -25,11 +24,27 @@
     "copyright": "Copyright © 2026 Redevon Community. All rights reserved.",
     "files": [
       "**/*",
-      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/*.map",
+      "!**/.*",
+      "!README.md",
+      "!RELEASE_NOTES.md",
+      "!CODE_SIGNING_GUIDE.md",
+      "!build_commands.txt"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
       "icon": "assets/icon/dsxicon256.ico",
       "publisherName": "Redevon Studios",
@@ -40,7 +55,10 @@
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "installerIcon": "assets/icon/dsxicon256.ico",
+      "uninstallerIcon": "assets/icon/dsxicon256.ico"
     }
   }
 }
