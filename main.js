@@ -46,15 +46,6 @@ function createWindow() {
 
     win.loadFile('chart-editor.html');
 
-    // Reload the window when entering or leaving full-screen mode.
-    // The confirmation dialog is now handled by the menu item that triggers this.
-    win.on('enter-full-screen', () => {
-        win.webContents.reload();
-    });
-    win.on('leave-full-screen', () => {
-        win.webContents.reload();
-    });
-
     const template = [
         {
             label: 'File',
@@ -69,6 +60,7 @@ function createWindow() {
                         }
                     }
                 },
+                { type: 'separator' },
                 {
                     label: 'Open Chart',
                     accelerator: 'CmdOrCtrl+O',
@@ -104,11 +96,11 @@ function createWindow() {
                     label: 'Import',
                     submenu: [
                         {
-                            label: 'Import osu!mania Chart',
+                            label: 'Import Chart',
                             click: () => {
                                 const window = BrowserWindow.getFocusedWindow();
                                 if (window) {
-                                    window.webContents.send('menu-import-osu');
+                                    window.webContents.send('menu-open-chart');
                                 }
                             }
                         },
@@ -118,6 +110,16 @@ function createWindow() {
                                 const window = BrowserWindow.getFocusedWindow();
                                 if (window) {
                                     window.webContents.send('menu-import-audio');
+                                }
+                            }
+                        },
+                        { type: 'separator' },
+                        {
+                            label: 'Import osu!mania Chart',
+                            click: () => {
+                                const window = BrowserWindow.getFocusedWindow();
+                                if (window) {
+                                    window.webContents.send('menu-import-osu');
                                 }
                             }
                         }
@@ -486,12 +488,14 @@ app.whenReady().then(() => {
     app.commandLine.appendSwitch('ignore-gpu-blacklist');
     app.commandLine.appendSwitch('disable-software-rasterizer');
     app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8096');
+    app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
     // Register IPC handlers before creating window
     ipcMain.handle('dialog:openFile', handleFileOpen);
     ipcMain.handle('dialog:saveFile', handleFileSave);
     ipcMain.handle('dialog:openMultipleFiles', handleOpenMultipleFiles);
     ipcMain.handle('dialog:openBeatmapFiles', handleOpenBeatmapFiles);
+    ipcMain.handle('dialog:openAudioFile', handleOpenAudioFile);
 
     createWindow();
 
@@ -616,6 +620,36 @@ async function handleOpenBeatmapFiles(event, { format }) {
     } catch (error) {
         console.error('Failed to read beatmap files', error);
         dialog.showErrorBox('File Read Error', `Could not read files: ${error.message}`);
+        return { canceled: true, error: error.message };
+    }
+}
+
+async function handleOpenAudioFile() {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+            { name: 'Audio Files', extensions: ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac'] },
+            { name: 'All Files', extensions: ['*'] }
+        ],
+        title: 'Select Audio File'
+    });
+
+    if (canceled || filePaths.length === 0) {
+        return { canceled: true };
+    }
+
+    try {
+        const filePath = filePaths[0];
+        const buffer = await fs.readFile(filePath);
+        return {
+            canceled: false,
+            filePath,
+            fileName: path.basename(filePath),
+            buffer: buffer.buffer // Return ArrayBuffer
+        };
+    } catch (error) {
+        console.error('Failed to read audio file', error);
+        dialog.showErrorBox('File Read Error', `Could not read the audio file: ${error.message}`);
         return { canceled: true, error: error.message };
     }
 }

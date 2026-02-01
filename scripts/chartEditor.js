@@ -11,6 +11,7 @@ import { SelectionManager } from './selectionManager.js';
 import { AutoSaveManager } from './autoSave.js';
 import { FirstTimeSetup } from './firstTimeSetup.js';
 import { ThemeImporter } from './themeImporter.js';
+import { TransitionManager } from './transitionManager.js';
 
 export class ChartEditor {
     constructor({ editorCanvasContainer, timelineContainer, sidebarContainer, toolbarContainer, iconbarContainer }) {
@@ -48,6 +49,7 @@ export class ChartEditor {
             },
             sections: [],
             notes: [],
+            transitions: [], // Layout transitions (honeycomb <-> ring)
             // Markers will be handled as a session-only feature, not part of the chart data.
         };
         this._chartData = new ChartData(this._chart);
@@ -72,12 +74,10 @@ export class ChartEditor {
             bloomIntensity: 0.0,
             // Note colors
             noteColors: {
-                regular: '#FF69B4',  // Pink for single notes
-                hold: '#FFD700',     // Gold for hold notes
-                chain: '#00CED1',    // Dark Turquoise for chain
-                multi: '#FFD700',    // Gold for double notes
-                slide: '#9370DB',    // Medium Purple for slide
-                flick: '#FF6347'     // Tomato Red for flick
+                regular: '#FFFFFF',  // White for regular notes
+                ex: '#FFD700',       // Gold for EX notes (special bonus notes)
+                ex2: '#FFD700',      // Gold for EX2 notes (same as EX, different sound)
+                multi: '#00BFFF'     // Deep Sky Blue for multi notes
             }
         };
 
@@ -90,6 +90,7 @@ export class ChartEditor {
         this.autoSaveManager = new AutoSaveManager(this);
         this.autoMapper = null; // Will be initialized when audio is loaded
         this.themeImporter = new ThemeImporter(this);
+        this.transitionManager = new TransitionManager(this);
 
         // FPS tracking
         this.fpsCounter = {
@@ -99,14 +100,30 @@ export class ChartEditor {
     }
 
     init() {
+        // Show loading screen
+        this._showLoadingScreen();
+
+        // Stage 1: Load fonts
+        this._updateLoadingStage('Loading Fonts', 'ZenMaruGothic font family');
         this._loadFonts().then(() => {
-            // Initialize soundManager early
-            soundManager.init().then(() => {
-                // Apply loaded volume settings to soundManager
+
+            // Stage 2: Initialize audio system
+            this._updateLoadingStage('Initializing Audio', 'Setting up sound engine');
+            soundManager.init((loaded, total) => {
+                const detailText = this.loadingScreen?.querySelector('#loading-detail-text');
+                if (detailText) {
+                    detailText.textContent = `Loading sound ${loaded}/${total}`;
+                }
+            }).then(() => {
                 soundManager.setEffectsVolume(this._settings.effectsVolume);
                 soundManager.setMusicVolume(this._settings.musicVolume);
+
+                // Stage 3: Building UI
+                this._updateLoadingStage('Building Interface', 'Rendering editor components');
             }).catch(e => {
+                console.error('Sound init error:', e);
             });
+
             this._renderToolbar();
             this._renderIconbar();
             this._renderSidebarPanels();
@@ -145,7 +162,11 @@ export class ChartEditor {
             });
 
             this._setupEventListeners();
+            this._setupMenuListeners(); // Register menu event listeners
             this._setupRecording();
+
+            // Initialize transition manager
+            this.transitionManager.init();
 
             window.addEventListener('keydown', this._handleKeyDown.bind(this));
             window.addEventListener('resize', this._handleResize.bind(this));
@@ -156,11 +177,19 @@ export class ChartEditor {
             this.autoSaveManager.start();
             this.autoSaveManager.setupBeforeUnload();
 
+            // Stage 4: Finalizing
+            this._updateLoadingStage('Ready', 'Editor initialized successfully');
+
+            // Hide loading screen after a brief moment
+            setTimeout(() => {
+                this._hideLoadingScreen();
+            }, 300);
+
             // Show first-time setup wizard
             setTimeout(() => {
                 const setup = new FirstTimeSetup(this);
                 setup.show();
-            }, 500);
+            }, 800);
         });
 
         // Expose a global for the debug overlay to access editor components
@@ -169,6 +198,118 @@ export class ChartEditor {
         // Initialize the debug overlay
         this.debugOverlay = new DebugOverlay();
         window.onerror = this.debugOverlay.logError;
+    }
+
+    _showLoadingScreen() {
+        const loadingScreen = document.createElement('div');
+        loadingScreen.id = 'sound-loading-screen';
+        loadingScreen.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #1e1e1e 0%, #0a0a0a 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            color: white;
+            font-family: 'ZenMaruGothic', sans-serif;
+        `;
+        loadingScreen.innerHTML = `
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+                <img src="initicon/studio.png" alt="Studio Logo" style="max-width: 60%; max-height: 60vh; width: auto; height: auto; opacity: 0.95;">
+            </div>
+            <div style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); text-align: center; width: 500px;">
+                <h2 id="loading-stage-title" style="font-size: 18px; margin-bottom: 16px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; opacity: 0.9;">Initializing Editor</h2>
+                <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 10px;">
+                    <div id="loading-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0e639c, #1177bb); transition: width 0.3s ease;"></div>
+                </div>
+                <p id="loading-progress-text" style="font-size: 13px; color: rgba(255,255,255,0.6); letter-spacing: 0.5px; margin-bottom: 8px;">Starting up...</p>
+                <p id="loading-detail-text" style="font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.3px; min-height: 16px;"></p>
+            </div>
+        `;
+        document.body.appendChild(loadingScreen);
+        this.loadingScreen = loadingScreen;
+        this.loadingStartTime = Date.now();
+        this.loadingStages = {
+            total: 4,
+            current: 0
+        };
+
+        // Timeout fallback - hide after 15 seconds if still stuck
+        this.loadingTimeout = setTimeout(() => {
+            console.warn('Loading timeout - hiding loading screen');
+            this._hideLoadingScreen();
+        }, 15000);
+    }
+
+    _updateLoadingStage(stage, detail = '') {
+        if (!this.loadingScreen) return;
+
+        const stageTitle = this.loadingScreen.querySelector('#loading-stage-title');
+        const progressBar = this.loadingScreen.querySelector('#loading-progress-bar');
+        const progressText = this.loadingScreen.querySelector('#loading-progress-text');
+        const detailText = this.loadingScreen.querySelector('#loading-detail-text');
+
+        this.loadingStages.current++;
+        const percent = (this.loadingStages.current / this.loadingStages.total) * 100;
+
+        if (stageTitle) stageTitle.textContent = stage;
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        if (progressText) progressText.textContent = `${this.loadingStages.current} / ${this.loadingStages.total}`;
+        if (detailText) detailText.textContent = detail;
+
+        console.log(`Loading stage: ${stage} (${this.loadingStages.current}/${this.loadingStages.total}) - ${detail}`);
+    }
+
+    _updateLoadingProgress(loaded, total) {
+        console.log(`Progress update: ${loaded}/${total}`);
+        if (!this.loadingScreen) {
+            console.warn('Loading screen not found!');
+            return;
+        }
+        const progressBar = this.loadingScreen.querySelector('#loading-progress-bar');
+        const progressText = this.loadingScreen.querySelector('#loading-progress-text');
+        if (progressBar) {
+            const percent = (loaded / total) * 100;
+            progressBar.style.width = `${percent}%`;
+            console.log(`Progress bar updated to ${percent}%`);
+        }
+        if (progressText) {
+            progressText.textContent = `${loaded} / ${total}`;
+            console.log(`Progress text updated to ${loaded} / ${total}`);
+        }
+    }
+
+    _hideLoadingScreen() {
+        // Clear timeout if it exists
+        if (this.loadingTimeout) {
+            clearTimeout(this.loadingTimeout);
+            this.loadingTimeout = null;
+        }
+
+        if (this.loadingScreen) {
+            // Ensure loading screen is visible for at least 1.5 seconds
+            const minDisplayTime = 1500;
+            const elapsed = Date.now() - (this.loadingStartTime || 0);
+            const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+            setTimeout(() => {
+                if (this.loadingScreen) {
+                    this.loadingScreen.style.opacity = '0';
+                    this.loadingScreen.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => {
+                        if (this.loadingScreen && this.loadingScreen.parentNode) {
+                            this.loadingScreen.parentNode.removeChild(this.loadingScreen);
+                        }
+                        this.loadingScreen = null;
+                    }, 300);
+                }
+            }, remainingTime);
+        }
     }
 
     _saveSettings() {
@@ -449,11 +590,9 @@ export class ChartEditor {
                 <strong>Note Types:</strong>
                 <div>
                     <div><kbd>1</kbd><span>: Regular Note</span></div>
-                    <div><kbd>2</kbd><span>: Hold Note</span></div>
-                    <div><kbd>3</kbd><span>: Chain Note</span></div>
-                    <div><kbd>4</kbd><span>: Multi Note</span></div>
-                    <div><kbd>5</kbd><span>: Slide Note</span></div>
-                    <div><kbd>6</kbd><span>: Flick Note</span></div>
+                    <div><kbd>2</kbd><span>: EX Note (Gold, Bonus Points)</span></div>
+                    <div><kbd>3</kbd><span>: EX2 Note (Gold, Different Sound)</span></div>
+                    <div><kbd>4</kbd><span>: Multi Note (Blue, Bonus Points)</span></div>
                 </div>
                 <strong>Volume:</strong>
                 <div>
@@ -728,8 +867,8 @@ export class ChartEditor {
                         <div class="color-grid">
                             <label for="regular-note-color">Regular:</label>
                             <input type="color" id="regular-note-color" value="#FF69B4">
-                            <label for="hold-note-color">Hold:</label>
-                            <input type="color" id="hold-note-color" value="#FFD700">
+                            <label for="ex-note-color">EX:</label>
+                            <input type="color" id="ex-note-color" value="#FFD700">
                             <label for="chain-note-color">Chain:</label>
                             <input type="color" id="chain-note-color" value="#00CED1">
                             <label for="multi-note-color">Multi:</label>
@@ -742,12 +881,12 @@ export class ChartEditor {
                     </div>
                 </div>
 
-                <div class="panel collapsible">
+                <div class="panel collapsible collapsed">
                     <h3 class="panel-header" data-panel="stats">
                         <span>Chart Statistics</span>
-                        <span class="collapse-icon">▼</span>
+                        <span class="collapse-icon">▶</span>
                     </h3>
-                    <div class="panel-content" id="panel-stats">
+                    <div class="panel-content" id="panel-stats" style="display: none;">
                         <div id="chart-stats">
                             <div class="stat-row"><span>Total Notes:</span> <strong id="stat-total-notes">0</strong></div>
                             <div class="stat-row"><span>Duration:</span> <strong id="stat-duration">0:00</strong></div>
@@ -805,21 +944,27 @@ export class ChartEditor {
                         <button class="button primary note-btn" id="note-type-regular" data-note-type="regular">
                             <span class="note-key">1</span> Regular
                         </button>
-                        <button class="button ghost note-btn" id="note-type-hold" data-note-type="hold">
-                            <span class="note-key">2</span> Hold
+                        <button class="button ghost note-btn" id="note-type-ex" data-note-type="ex">
+                            <span class="note-key">2</span> EX
                         </button>
-                        <button class="button ghost note-btn" id="note-type-chain" data-note-type="chain">
-                            <span class="note-key">3</span> Chain
+                        <button class="button ghost note-btn" id="note-type-ex2" data-note-type="ex2">
+                            <span class="note-key">3</span> EX2
                         </button>
                         <button class="button ghost note-btn" id="note-type-multi" data-note-type="multi">
                             <span class="note-key">4</span> Multi
                         </button>
-                        <button class="button ghost note-btn" id="note-type-slide" data-note-type="slide">
-                            <span class="note-key">5</span> Slide
-                        </button>
-                        <button class="button ghost note-btn" id="note-type-flick" data-note-type="flick">
-                            <span class="note-key">6</span> Flick
-                        </button>
+                    </div>
+                </div>
+
+                <div class="panel collapsible collapsed">
+                    <h3 class="panel-header" data-panel="transitions">
+                        <span>Layout Transitions</span>
+                        <span class="collapse-icon">▶</span>
+                    </h3>
+                    <div class="panel-content" id="panel-transitions" style="display: none;">
+                        <div id="transition-panel-content">
+                            <!-- Transition manager will populate this -->
+                        </div>
                     </div>
                 </div>
 
@@ -834,6 +979,15 @@ export class ChartEditor {
                             <label for="note-zone">Zone:</label>
                             <input type="number" id="note-zone" min="0" max="3">
                         </div>
+                    </div>
+                    <div class="input-row">
+                        <label for="note-type-select">Note Type:</label>
+                        <select id="note-type-select">
+                            <option value="regular">Regular</option>
+                            <option value="ex">EX</option>
+                            <option value="ex2">EX2</option>
+                            <option value="multi">Multi</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -938,7 +1092,7 @@ export class ChartEditor {
         this.gameplayZoomValue = this.containers.sidebar.querySelector('#gameplay-zoom-value');
         this.playbackSpeedSelect = this.containers.toolbar.querySelector('#playback-speed');
         this.regularNoteColorInput = this.containers.sidebar.querySelector('#regular-note-color');
-        this.holdNoteColorInput = this.containers.sidebar.querySelector('#hold-note-color');
+        this.exNoteColorInput = this.containers.sidebar.querySelector('#ex-note-color');
         this.chainNoteColorInput = this.containers.sidebar.querySelector('#chain-note-color');
         this.multiNoteColorInput = this.containers.sidebar.querySelector('#multi-note-color');
         this.slideNoteColorInput = this.containers.sidebar.querySelector('#slide-note-color');
@@ -946,6 +1100,7 @@ export class ChartEditor {
         this.notePropertiesPanel = this.containers.sidebar.querySelector('#note-properties-panel');
         this.noteTimeInput = this.containers.sidebar.querySelector('#note-time');
         this.noteZoneInput = this.containers.sidebar.querySelector('#note-zone');
+        this.noteTypeSelect = this.containers.sidebar.querySelector('#note-type-select');
         this.noteTypeButtons = this.containers.sidebar.querySelectorAll('.note-palette-grid .button');
 
         this.effectsVolumeSlider = this.containers.toolbar.querySelector('#effects-volume-slider');
@@ -1043,7 +1198,7 @@ export class ChartEditor {
         addBlurListener(this.bpmInput, 'change', this._updateBpm.bind(this));
         addBlurListener(this.offsetInput, 'change', this._updateOffset.bind(this));
         addBlurListener(this.approachSpeedInput, 'change', this._updateApproachSpeed.bind(this));
-        addBlurListener(this.audioInput, 'change', this._loadAudio.bind(this));
+        addBlurListener(this.audioInput, 'change', this._loadAudioFromInput.bind(this));
         addBlurListener(this.noteApproachSpeedSlider, 'change', this._updateNoteApproachSpeedFromSlider.bind(this));
         addListener(this.noteApproachSpeedSlider, 'input', this._updateNoteApproachSpeedFromSlider.bind(this)); // For live update
         addBlurListener(this.snapToggle, 'change', (e) => {
@@ -1082,7 +1237,7 @@ export class ChartEditor {
         // Note color inputs
         const noteColorInputs = [
             { input: this.regularNoteColorInput, type: 'regular' },
-            { input: this.holdNoteColorInput, type: 'hold' },
+            { input: this.exNoteColorInput, type: 'ex' },
             { input: this.chainNoteColorInput, type: 'chain' },
             { input: this.multiNoteColorInput, type: 'multi' },
             { input: this.slideNoteColorInput, type: 'slide' },
@@ -1099,12 +1254,13 @@ export class ChartEditor {
         });
         addBlurListener(this.noteTimeInput, 'change', (e) => this._updateSelectedNoteProperty('time', parseFloat(e.target.value)));
         addBlurListener(this.noteZoneInput, 'change', (e) => this._updateSelectedNoteProperty('zone', parseInt(e.target.value)));
+        addBlurListener(this.noteTypeSelect, 'change', (e) => this._updateSelectedNoteProperty('type', e.target.value));
 
         // --- Note Palette Buttons ---
         this.noteTypeButtons.forEach(button => {
             addListener(button, 'click', () => {
                 const noteType = button.dataset.noteType;
-                this._setSelectedNoteType(noteType);
+                this._selectNoteType(noteType);
             });
         });
 
@@ -1176,7 +1332,7 @@ export class ChartEditor {
         this.gameplayZoomSlider.value = this._settings.gameplayZoom;
         this.gameplayZoomValue.textContent = `${this._settings.gameplayZoom.toFixed(1)}x`;
         this.regularNoteColorInput.value = this._settings.noteColors.regular;
-        this.holdNoteColorInput.value = this._settings.noteColors.hold;
+        this.exNoteColorInput.value = this._settings.noteColors.ex;
         this.chainNoteColorInput.value = this._settings.noteColors.chain;
         this.multiNoteColorInput.value = this._settings.noteColors.multi;
         this.slideNoteColorInput.value = this._settings.noteColors.slide;
@@ -1317,7 +1473,7 @@ export class ChartEditor {
 
     _handleKeyDown(e) {
         // Prevent default for editor shortcuts when not in input fields
-        if ([' ', 'Backspace', 'Delete', 'z', 'y', 's', 'l', '+', '-', 'ArrowLeft', 'ArrowRight', 'm', 'M', 'Backquote', 'Escape', '1', '2', '3', '4', '5', '6', 'c', 'v', 'x', 'd', 'a'].includes(e.key) && document.activeElement.tagName !== 'INPUT') {
+        if ([' ', 'Backspace', 'Delete', 'z', 'y', 's', 'l', '+', '-', 'ArrowLeft', 'ArrowRight', 'm', 'M', 'Backquote', 'Escape', '1', '2', '3', '4', 'c', 'v', 'x', 'd', 'a'].includes(e.key) && document.activeElement.tagName !== 'INPUT') {
             e.preventDefault();
         }
 
@@ -1428,19 +1584,13 @@ export class ChartEditor {
                 this._selectNoteType('regular');
                 break;
             case '2':
-                this._selectNoteType('hold');
+                this._selectNoteType('ex');
                 break;
             case '3':
-                this._selectNoteType('chain');
+                this._selectNoteType('ex2');
                 break;
             case '4':
                 this._selectNoteType('multi');
-                break;
-            case '5':
-                this._selectNoteType('slide');
-                break;
-            case '6':
-                this._selectNoteType('flick');
                 break;
         }
     }
@@ -1963,7 +2113,7 @@ export class ChartEditor {
         if (scheme === 'rainbow') {
             this._settings.noteColors = {
                 regular: '#FF0000',  // Red
-                hold: '#FF7F00',     // Orange
+                ex: '#FF7F00',       // Orange
                 chain: '#FFFF00',    // Yellow
                 multi: '#00FF00',    // Green
                 slide: '#0000FF',    // Blue
@@ -1972,7 +2122,7 @@ export class ChartEditor {
         } else if (scheme === 'monochrome') {
             this._settings.noteColors = {
                 regular: '#FFFFFF',  // White
-                hold: '#CCCCCC',     // Light gray
+                ex: '#CCCCCC',       // Light gray
                 chain: '#999999',    // Medium gray
                 multi: '#FFFFFF',    // White
                 slide: '#666666',    // Dark gray
@@ -1981,10 +2131,10 @@ export class ChartEditor {
         } else {
             // Default colors
             this._settings.noteColors = {
-                regular: '#FF69B4',  // Pink
-                hold: '#FFD700',     // Gold
+                regular: '#FFFFFF',  // White
+                ex: '#FFD700',       // Gold
+                multi: '#00BFFF',    // Deep Sky Blue
                 chain: '#00CED1',    // Dark Turquoise
-                multi: '#FFD700',    // Gold
                 slide: '#9370DB',    // Medium Purple
                 flick: '#FF6347'     // Tomato Red
             };
@@ -1992,7 +2142,7 @@ export class ChartEditor {
 
         // Update color inputs in sidebar
         if (this.regularNoteColorInput) this.regularNoteColorInput.value = this._settings.noteColors.regular;
-        if (this.holdNoteColorInput) this.holdNoteColorInput.value = this._settings.noteColors.hold;
+        if (this.exNoteColorInput) this.exNoteColorInput.value = this._settings.noteColors.ex;
         if (this.chainNoteColorInput) this.chainNoteColorInput.value = this._settings.noteColors.chain;
         if (this.multiNoteColorInput) this.multiNoteColorInput.value = this._settings.noteColors.multi;
         if (this.slideNoteColorInput) this.slideNoteColorInput.value = this._settings.noteColors.slide;
@@ -2169,7 +2319,10 @@ export class ChartEditor {
                 this.playIcon.style.display = 'block';
                 this.pauseIcon.style.display = 'none';
             });
-            this.gameplay.setChart(this._chartData.raw.notes); // Pass current chart notes to gameplay
+            this.gameplay.setChartWithTransitions({
+                notes: this._chartData.raw.notes,
+                transitions: this._chartData.raw.transitions || []
+            }); // Pass current chart notes and transitions to gameplay
             this.gameplay.start(); // Start gameplay simulation
             this._updateTimelineIndicator();
 
@@ -2284,12 +2437,14 @@ export class ChartEditor {
             if (this.notePropertiesPanel.style.opacity === '1') {
                 this.noteTimeInput.value = note.time.toFixed(2);
                 this.noteZoneInput.value = note.zone;
+                this.noteTypeSelect.value = note.type || 'regular';
                 return;
             }
             this.notePropertiesPanel.style.display = 'block';
             this.notePropertiesPanel.style.pointerEvents = 'auto';
             this.noteTimeInput.value = note.time.toFixed(2);
             this.noteZoneInput.value = note.zone;
+            this.noteTypeSelect.value = note.type || 'regular';
             anime({ targets: this.notePropertiesPanel, opacity: [0, 1], translateY: ['-10px', '0px'], duration: 300, easing: 'easeOutCubic' });
         } else {
             if (this.notePropertiesPanel.style.opacity === '0') return;
@@ -2309,8 +2464,20 @@ export class ChartEditor {
 
     _updateSelectedNoteProperty(property, value) {
         if (this.selectedNote) {
+            const oldValue = this.selectedNote[property];
             this.selectedNote[property] = value;
-            this._chartData.raw.notes.sort((a, b) => a.time - b.time);
+
+            // If changing type, update the note's visual representation
+            if (property === 'type') {
+                // Mark as unsaved
+                this.autoSaveManager.markUnsaved();
+            }
+
+            // Re-sort notes if time changed
+            if (property === 'time') {
+                this._chartData.raw.notes.sort((a, b) => a.time - b.time);
+            }
+
             this.timeline.update();
         }
     }
@@ -2349,12 +2516,136 @@ export class ChartEditor {
         }
     }
 
+    _newChart() {
+        // Confirm if there are unsaved changes
+        if (this.autoSaveManager && this.autoSaveManager.hasUnsavedChanges) {
+            const confirmed = confirm('You have unsaved changes. Create a new chart anyway?');
+            if (!confirmed) return;
+        }
+
+        // Reset chart data
+        this._chart = {
+            meta: {
+                title: 'Untitled Chart',
+                artist: 'Unknown Artist',
+                creator: 'Unknown Creator',
+                difficulty: 'Normal',
+                level: 1
+            },
+            timing: {
+                bpm: 120,
+                offset: 0
+            },
+            notes: []
+        };
+
+        // Update UI
+        if (this.chartTitleInput) this.chartTitleInput.value = this._chart.meta.title;
+        if (this.chartArtistInput) this.chartArtistInput.value = this._chart.meta.artist;
+        if (this.chartCreatorInput) this.chartCreatorInput.value = this._chart.meta.creator;
+        if (this.chartDifficultySelect) this.chartDifficultySelect.value = this._chart.meta.difficulty;
+        if (this.chartLevelInput) this.chartLevelInput.value = this._chart.meta.level;
+        if (this.bpmInput) this.bpmInput.value = this._chart.timing.bpm;
+        if (this.offsetInput) this.offsetInput.value = this._chart.timing.offset;
+
+        // Clear timeline
+        if (this.timeline) {
+            this.timeline.chartData = this._chart;
+            this.timeline.update();
+        }
+
+        // Clear command history
+        if (this.commandManager) {
+            this.commandManager.clear();
+        }
+
+        // Mark as saved (new chart)
+        if (this.autoSaveManager) {
+            this.autoSaveManager.markSaved();
+        }
+
+        console.log('New chart created');
+    }
+
+    _validateChart() {
+        const issues = [];
+
+        // Check metadata
+        if (!this._chart.meta.title || this._chart.meta.title === 'Untitled Chart') {
+            issues.push('Chart title is not set');
+        }
+        if (!this._chart.meta.artist || this._chart.meta.artist === 'Unknown Artist') {
+            issues.push('Artist name is not set');
+        }
+        if (!this._chart.meta.creator || this._chart.meta.creator === 'Unknown Creator') {
+            issues.push('Creator name is not set');
+        }
+
+        // Check timing
+        if (!this._chart.timing.bpm || this._chart.timing.bpm <= 0) {
+            issues.push('BPM is not set or invalid');
+        }
+
+        // Check notes
+        if (!this._chart.notes || this._chart.notes.length === 0) {
+            issues.push('Chart has no notes');
+        }
+
+        // Check for overlapping notes
+        const notesByTime = {};
+        this._chart.notes.forEach((note, index) => {
+            const key = `${note.time}_${note.zone}`;
+            if (notesByTime[key]) {
+                issues.push(`Overlapping notes at time ${note.time}ms, zone ${note.zone}`);
+            }
+            notesByTime[key] = true;
+        });
+
+        // Show results
+        if (issues.length === 0) {
+            alert('✓ Chart validation passed!\n\nNo issues found.');
+        } else {
+            alert(`⚠ Chart validation found ${issues.length} issue(s):\n\n` + issues.join('\n'));
+        }
+
+        return issues.length === 0;
+    }
+
     async _loadAudio() {
-        const file = this.audioInput.files[0];
-        if (file) {
-            this.audioPlayer.src = URL.createObjectURL(file);
-            this._chart.meta.title = file.name.replace(/\.[^/.]+$/, "");
-            const arrayBuffer = await file.arrayBuffer();
+        // Use Electron's native open dialog if available
+        if (window.electronAPI && window.electronAPI.openAudioFile) {
+            const result = await window.electronAPI.openAudioFile();
+            if (result && !result.canceled && result.buffer) {
+                await this._processAudioFile(result.buffer, result.fileName);
+            }
+        } else {
+            // Fallback: check if audioInput has a file
+            const file = this.audioInput?.files?.[0];
+            if (file) {
+                const arrayBuffer = await file.arrayBuffer();
+                await this._processAudioFile(arrayBuffer, file.name);
+            } else {
+                // Trigger file input click as last resort
+                if (this.audioInput) {
+                    this.audioInput.click();
+                }
+            }
+        }
+    }
+
+    async _processAudioFile(arrayBuffer, fileName) {
+        try {
+            // Create blob URL for audio player
+            const blob = new Blob([arrayBuffer], { type: 'audio/*' });
+            this.audioPlayer.src = URL.createObjectURL(blob);
+
+            // Set chart title from filename
+            this._chart.meta.title = fileName.replace(/\.[^/.]+$/, "");
+            if (this.chartTitleInput) {
+                this.chartTitleInput.value = this._chart.meta.title;
+            }
+
+            // Decode audio for waveform
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
             this.timeline.waveformRenderer.loadAudioBuffer(audioBuffer);
@@ -2365,7 +2656,7 @@ export class ChartEditor {
                 sampleRate: audioBuffer.sampleRate,
                 channels: audioBuffer.numberOfChannels,
                 duration: audioBuffer.duration,
-                codec: this._detectCodec(file.name)
+                codec: this._detectCodec(fileName)
             };
 
             // Update audio timer info
@@ -2377,10 +2668,25 @@ export class ChartEditor {
                 // Load trained model from storage
                 await this.autoMapper.loadTrainedModel();
             } catch (error) {
+                console.warn('AutoMapper initialization failed:', error);
             }
 
             // Initialize audio analyzer for level meter
             this._initAudioAnalyzer(audioContext);
+
+            this._showToast(`Audio loaded: ${fileName}`);
+        } catch (error) {
+            console.error('Failed to process audio file:', error);
+            this._showToast('Error: Failed to load audio file');
+        }
+    }
+
+    async _loadAudioFromInput() {
+        // This method is called when the file input changes
+        const file = this.audioInput.files[0];
+        if (file) {
+            const arrayBuffer = await file.arrayBuffer();
+            await this._processAudioFile(arrayBuffer, file.name);
         }
     }
 
@@ -2496,6 +2802,132 @@ export class ChartEditor {
 
             audioTimerDisplay.textContent = `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
         }
+    }
+
+    _setupMenuListeners() {
+        // Check if electronAPI is available
+        if (!window.electronAPI || !window.electronAPI.onMenuEvent) {
+            console.warn('Electron menu API not available');
+            return;
+        }
+
+        // File menu
+        window.electronAPI.onMenuEvent('menu-new-chart', () => this._newChart());
+        window.electronAPI.onMenuEvent('menu-open-chart', () => this._importChart());
+        window.electronAPI.onMenuEvent('menu-save-chart', () => this._exportChart());
+        window.electronAPI.onMenuEvent('menu-save-chart-as', () => this._exportChart());
+        window.electronAPI.onMenuEvent('menu-import-osu', () => this._showAutomapDialog());
+        window.electronAPI.onMenuEvent('menu-import-audio', () => this._loadAudio());
+        window.electronAPI.onMenuEvent('menu-export-chart', () => this._exportChart());
+        window.electronAPI.onMenuEvent('menu-open-settings', () => this._showSettingsModal());
+
+        // Edit menu
+        window.electronAPI.onMenuEvent('menu-undo', () => {
+            this.commandManager.undo();
+            this.timeline.update();
+            this._onNoteSelected(null);
+        });
+        window.electronAPI.onMenuEvent('menu-redo', () => {
+            this.commandManager.redo();
+            this.timeline.update();
+            this._onNoteSelected(null);
+        });
+        window.electronAPI.onMenuEvent('menu-select-all', () => {
+            this.selectionManager.selectAll();
+            this.timeline.update();
+        });
+        window.electronAPI.onMenuEvent('menu-delete-selected', () => {
+            this.selectionManager.deleteSelected();
+            this.timeline.update();
+        });
+        window.electronAPI.onMenuEvent('menu-copy', () => {
+            this.selectionManager.copy();
+        });
+        window.electronAPI.onMenuEvent('menu-paste', () => {
+            this.selectionManager.paste();
+            this.timeline.update();
+        });
+
+        // View menu
+        window.electronAPI.onMenuEvent('menu-zoom-in', () => {
+            this.timeline.smoothZoom(this.timeline.zoom * 1.5);
+            this._updateStatusBar();
+        });
+        window.electronAPI.onMenuEvent('menu-zoom-out', () => {
+            this.timeline.smoothZoom(this.timeline.zoom * 0.67);
+            this._updateStatusBar();
+        });
+        window.electronAPI.onMenuEvent('menu-zoom-reset', () => {
+            this.timeline.smoothZoom(1.0);
+            this._updateStatusBar();
+        });
+        window.electronAPI.onMenuEvent('menu-toggle-grid', () => {
+            // Toggle grid visibility
+            if (this.timeline) {
+                this.timeline.gridVisible = !this.timeline.gridVisible;
+                this.timeline.update();
+            }
+        });
+        window.electronAPI.onMenuEvent('menu-toggle-metronome', () => {
+            this._toggleMetronome();
+        });
+
+        // Playback menu
+        window.electronAPI.onMenuEvent('menu-play-pause', () => {
+            this._toggleSimulation();
+        });
+        window.electronAPI.onMenuEvent('menu-stop', () => {
+            if (this.isSimulating) {
+                this._toggleSimulation();
+            }
+        });
+        window.electronAPI.onMenuEvent('menu-jump-start', () => {
+            if (this.audioPlayer) {
+                this.audioPlayer.currentTime = 0;
+                this.timeline.update();
+            }
+        });
+        window.electronAPI.onMenuEvent('menu-jump-end', () => {
+            if (this.audioPlayer && this.audioPlayer.duration) {
+                this.audioPlayer.currentTime = this.audioPlayer.duration;
+                this.timeline.update();
+            }
+        });
+        window.electronAPI.onMenuEvent('menu-playback-speed', (event, speed) => {
+            if (this.audioPlayer) {
+                this.audioPlayer.playbackRate = speed;
+                if (this.playbackSpeedSelect) {
+                    this.playbackSpeedSelect.value = speed;
+                }
+            }
+        });
+
+        // Tools menu
+        window.electronAPI.onMenuEvent('menu-ai-automapper', () => {
+            this._showAutomapDialog();
+        });
+        window.electronAPI.onMenuEvent('menu-train-ai', () => {
+            this._showAutomapDialog();
+        });
+        window.electronAPI.onMenuEvent('menu-chart-stats', () => {
+            this._scrollToPanel('stats');
+        });
+        window.electronAPI.onMenuEvent('menu-validate-chart', () => {
+            this._validateChart();
+        });
+
+        // Help menu
+        window.electronAPI.onMenuEvent('menu-documentation', () => {
+            // Open documentation in browser
+            if (window.electronAPI && window.electronAPI.openExternal) {
+                window.electronAPI.openExternal('https://github.com/yourusername/dsx-editor/wiki');
+            }
+        });
+        window.electronAPI.onMenuEvent('menu-shortcuts', () => {
+            this._toggleHelpModal();
+        });
+
+        console.log('Menu listeners registered');
     }
 
     _setupRecording() {
@@ -2661,6 +3093,11 @@ export class ChartEditor {
                 // Update settings
                 this._settings.bpm = this._chart.meta.bpm.init || this._chart.meta.bpm || 120;
                 this._settings.offset = this._chart.timing.offset || 0;
+
+                // Load transitions if present
+                if (this.transitionManager) {
+                    this.transitionManager.loadTransitions(this._chart.transitions || []);
+                }
 
                 this._onNoteSelected(null);
                 this._showToast(`Imported: ${this._chart.meta.title || 'Untitled'}`);

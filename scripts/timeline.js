@@ -381,7 +381,17 @@ Timeline.prototype.drawNotes = function () {
     }
     this.noteGraphics.clear();
 
-    const zoneColors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00]; // Red, Green, Blue, Yellow
+    // Note type colors (convert hex to PIXI color)
+    const getNoteColor = (note) => {
+        const type = note.type || 'regular';
+        const colorMap = {
+            'regular': 0xFFFFFF,  // White
+            'ex': 0xFFD700,       // Gold
+            'ex2': 0xFFD700,      // Gold (same as EX)
+            'multi': 0x00BFFF     // Blue
+        };
+        return colorMap[type] || 0xFFFFFF;
+    };
 
     const notesToDraw = this.temporaryNotes.length > 0 ? this._chartData.raw.notes.concat(this.temporaryNotes) : this._chartData.raw.notes;
 
@@ -399,7 +409,7 @@ Timeline.prototype.drawNotes = function () {
             noteGraphic.lineStyle(3, 0xFFFF00, 1); // Yellow border for selected notes
         }
 
-        noteGraphic.beginFill(zoneColors[note.zone % zoneColors.length]);
+        noteGraphic.beginFill(getNoteColor(note));
         noteGraphic.drawRect(0, 0, 20, 20); // Note size
         noteGraphic.endFill();
 

@@ -6,10 +6,18 @@ export class SoundManager {
         this.context = null;
         this.loopingSources = {};
         this.playingSources = {};
+        this.loadingProgress = 0;
+        this.totalSounds = 0;
     }
 
-    async init() {
-        if (this.initialized) return;
+    async init(onProgress = null) {
+        if (this.initialized) {
+            console.log('SoundManager already initialized');
+            return;
+        }
+
+        console.log('SoundManager init starting...');
+
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.context = new AudioContext();
@@ -39,43 +47,54 @@ export class SoundManager {
             this.effectsGain.gain.setValueAtTime(this._volumes.effects, this.context.currentTime);
             this.musicGain.gain.setValueAtTime(this._volumes.music, this.context.currentTime);
 
-            // Load all sound effects
+            // Load all sound effects (only judgement sounds for editor)
             const sfxList = {
-                start: 'assets/misc/SystemSFX/enqueue.wav',
-                button: 'assets/misc/SystemSFX/button.wav',
-                toggle: 'assets/misc/SystemSFX/toggle.wav',
                 criticalPerfect: 'assets/misc/JudgementsSFX/DSX_GAME_PERFECT.wav',
                 perfect: 'assets/misc/JudgementsSFX/DSX_GAME_PERFECT.wav',
                 great: 'assets/misc/JudgementsSFX/DSX_GAME_GREAT.wav',
                 good: 'assets/misc/JudgementsSFX/DSX_GAME_GOOD.wav',
-
-                'nav': 'assets/misc/SystemSFX/DSX_NAV.wav',
-                'dsx-nav-enter': 'assets/misc/SystemSFX/DSX_NAVENTER.wav',
-                'start_game': 'assets/misc/SystemSFX/Start.wav',
-                'clear_all_perfect_plus': 'assets/misc/VoiceSFX/FullCombo.wav',
-                'clear_all_perfect': 'assets/misc/VoiceSFX/FullCombo.wav',
-                'clear_full_combo_plus': 'assets/misc/VoiceSFX/FullCombo.wav',
-                'clear_full_combo': 'assets/misc/VoiceSFX/FullCombo.wav',
-                'clear_clear': 'assets/misc/VoiceSFX/FullCombo.wav',
-                'clear_failed': 'assets/misc/VoiceSFX/Lose.wav',
-                'result_jingle': 'assets/misc/SystemSFX/DSX_RESULT_SPECIAL.wav',
-                'door_close': 'assets/misc/SystemSFX/SE_KALEID_DOOR_2_.wav'
+                ex: 'assets/misc/JudgementsSFX/DSX_GAME_EX1.wav',
+                ex2: 'assets/misc/JudgementsSFX/DSX_GAME_EX2.wav',
+                incoming: 'assets/misc/JudgementsSFX/DSX_GAME_INCOMING.wav'
             };
 
-            // Load all sounds in parallel
+            this.totalSounds = Object.keys(sfxList).length;
+            this.loadingProgress = 0;
+
+            console.log(`Loading ${this.totalSounds} sounds...`);
+
+            // Call progress immediately with initial state
+            if (onProgress) {
+                onProgress(0, this.totalSounds);
+            }
+
+            // Load all sounds in parallel with progress tracking
             const loadPromises = Object.entries(sfxList).map(async ([name, path]) => {
                 try {
+                    console.log(`Loading sound: ${name} from ${path}`);
                     const response = await fetch(path);
                     const arrayBuffer = await response.arrayBuffer();
                     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
                     this.sounds[name] = audioBuffer;
+                    this.loadingProgress++;
+                    console.log(`Loaded ${name}: ${this.loadingProgress}/${this.totalSounds}`);
+                    if (onProgress) {
+                        onProgress(this.loadingProgress, this.totalSounds);
+                    }
                 } catch (e) {
+                    console.error(`Failed to load sound ${name}:`, e);
+                    this.loadingProgress++;
+                    if (onProgress) {
+                        onProgress(this.loadingProgress, this.totalSounds);
+                    }
                 }
             });
 
             await Promise.all(loadPromises);
             this.initialized = true;
+            console.log('SoundManager init complete!');
         } catch (e) {
+            console.error('SoundManager init error:', e);
         }
     }
 

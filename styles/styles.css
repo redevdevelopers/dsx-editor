@@ -916,6 +916,96 @@ html, body {
 .theme-oled .panel {
     background-color: #000000 !important;
     border-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+/* OLED Theme - Hover States */
+.theme-oled button:hover,
+.theme-oled .button:hover {
+    background-color: #1a1a1a !important;
+    border-color: #00aaff !important;
+}
+
+/* OLED Theme - Active/Selected States */
+.theme-oled button.primary,
+.theme-oled .button.primary,
+.theme-oled button.active,
+.theme-oled .button.active,
+.theme-oled .note-btn.primary {
+    background-color: #00aaff !important;
+    border-color: #00aaff !important;
+    color: #000000 !important;
+}
+
+.theme-oled button.primary:hover,
+.theme-oled .button.primary:hover {
+    background-color: #0099ee !important;
+    border-color: #0099ee !important;
+}
+
+/* OLED Theme - Ghost Buttons */
+.theme-oled button.ghost,
+.theme-oled .button.ghost {
+    background-color: transparent !important;
+    border-color: #333333 !important;
+    color: #ffffff !important;
+}
+
+.theme-oled button.ghost:hover,
+.theme-oled .button.ghost:hover {
+    background-color: #1a1a1a !important;
+    border-color: #00aaff !important;
+}
+
+.theme-oled button.ghost.active,
+.theme-oled .button.ghost.active {
+    background-color: #1a1a1a !important;
+    border-color: #00aaff !important;
+    color: #00aaff !important;
+}
+
+/* OLED Theme - Text Colors */
+.theme-oled,
+.theme-oled * {
+    color: #ffffff !important;
+}
+
+.theme-oled label,
+.theme-oled .panel-header {
+    color: #999999 !important;
+}
+
+/* OLED Theme - Iconbar */
+.theme-oled .iconbar-button {
+    color: #999999 !important;
+}
+
+.theme-oled .iconbar-button:hover {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+}
+
+.theme-oled .iconbar-button.active {
+    background-color: #1a1a1a !important;
+    color: #00aaff !important;
+}
+
+.theme-oled .iconbar-button.active::before {
+    background-color: #00aaff !important;
+}
+
+/* OLED Theme - Scrollbar */
+.theme-oled ::-webkit-scrollbar-track {
+    background: #0a0a0a !important;
+}
+
+.theme-oled ::-webkit-scrollbar-thumb {
+    background-color: #333333 !important;
+    border: 2px solid #0a0a0a !important;
+}
+
+.theme-oled ::-webkit-scrollbar-thumb:hover {
+    background-color: #00aaff !important;
 }
 
 /* Buttons */
@@ -1469,4 +1559,285 @@ img {
 @keyframes flash-red {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
+}
+
+
+/* Transition Manager Styles */
+#transition-panel {
+    background: rgba(20, 30, 48, 0.95);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+#transition-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+#transition-panel .panel-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #e0e6ff;
+}
+
+#add-transition-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#add-transition-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.transition-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.transition-list .empty-state {
+    text-align: center;
+    color: #8892b0;
+    padding: 24px;
+    font-size: 14px;
+}
+
+.transition-item {
+    background: rgba(30, 40, 60, 0.6);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid rgba(100, 150, 255, 0.1);
+    transition: all 0.2s;
+}
+
+.transition-item:hover {
+    background: rgba(40, 50, 70, 0.8);
+    border-color: rgba(100, 150, 255, 0.3);
+}
+
+.transition-info {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex: 1;
+}
+
+.transition-info strong {
+    color: #64ffda;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.transition-mode {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.transition-duration {
+    color: #8892b0;
+    font-size: 12px;
+}
+
+.btn-edit {
+    background: rgba(100, 150, 255, 0.2);
+    color: #64b5f6;
+    border: 1px solid rgba(100, 150, 255, 0.3);
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-edit:hover {
+    background: rgba(100, 150, 255, 0.3);
+    border-color: rgba(100, 150, 255, 0.5);
+}
+
+.transition-editor {
+    background: rgba(30, 40, 60, 0.6);
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 16px;
+    border: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+.transition-editor h4 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e6ff;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #a8b2d1;
+    font-weight: 500;
+}
+
+.form-group input[type="number"],
+.form-group input[type="text"],
+.form-group select {
+    width: 100%;
+    background: rgba(20, 30, 48, 0.8);
+    border: 1px solid rgba(100, 150, 255, 0.2);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #e0e6ff;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.form-group input[type="number"]:focus,
+.form-group input[type="text"]:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: rgba(100, 150, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(100, 150, 255, 0.1);
+}
+
+.form-group input[type="range"] {
+    width: calc(100% - 50px);
+    margin-right: 8px;
+}
+
+.form-group #flash-value {
+    color: #64ffda;
+    font-weight: 600;
+    font-size: 13px;
+    min-width: 40px;
+    display: inline-block;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+.advanced-settings {
+    margin: 16px 0;
+    background: rgba(20, 30, 48, 0.6);
+    border-radius: 4px;
+    border: 1px solid rgba(100, 150, 255, 0.1);
+}
+
+.advanced-settings summary {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #a8b2d1;
+    font-weight: 500;
+    user-select: none;
+}
+
+.advanced-settings summary:hover {
+    color: #e0e6ff;
+}
+
+.advanced-settings[open] summary {
+    border-bottom: 1px solid rgba(100, 150, 255, 0.1);
+    margin-bottom: 12px;
+}
+
+.advanced-settings .form-group {
+    padding: 0 12px;
+}
+
+.advanced-settings .form-group:last-child {
+    padding-bottom: 12px;
+}
+
+.button-group {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.button-group button {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.button-group button svg {
+    width: 18px;
+    height: 18px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+}
+
+.btn-secondary {
+    background: rgba(100, 150, 255, 0.1);
+    color: #a8b2d1;
+    border: 1px solid rgba(100, 150, 255, 0.2);
+}
+
+.btn-secondary:hover {
+    background: rgba(100, 150, 255, 0.2);
+    color: #e0e6ff;
 }

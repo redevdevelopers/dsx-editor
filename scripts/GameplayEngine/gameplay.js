@@ -1,9 +1,9 @@
-import { createHexGrid } from '../hexGrid.js';
+import { createHexGrid, getHexPosition, getCenterPosition, RING_TRAVEL_TIME } from '../hexGrid.js';
 import { createParallaxBackground } from '../UI/background.js';
 import { spawnNote } from '../noteAnimation.js';
 import { drawHex } from '../Utils/utils.js';
 import { soundManager } from '../audioEngine/soundManager.js';
-import { tryHit } from '../hitAndCombo.js';
+import { TransitionController } from '../transitionController.js';
 
 const { PIXI } = window;
 
@@ -120,12 +120,10 @@ export class Gameplay {
         this.bloomEnabled = true;
         this.bloomIntensity = 0.5;
         this.noteColors = {
-            regular: 0xFF69B4,
-            hold: 0xFFD700,
-            chain: 0x00CED1,
-            multi: 0xFFD700,
-            slide: 0x9370DB,
-            flick: 0xFF6347
+            regular: 0xFFFFFF,  // White for regular notes
+            ex: 0xFFD700,       // Gold for EX notes
+            ex2: 0xFFD700,      // Gold for EX2 notes
+            multi: 0x00BFFF     // Deep Sky Blue for multi notes
         };
 
         // Combo Text
@@ -145,6 +143,9 @@ export class Gameplay {
         this.comboText.y = this.app.screen.height / 2 + 100; // Adjust position as needed
         this.comboText.alpha = 0; // Start invisible
         this.uiLayer.addChild(this.comboText);
+
+        // Initialize transition controller
+        this.transitionController = new TransitionController(this);
     }
 
     setClock(clock) {
@@ -152,7 +153,7 @@ export class Gameplay {
     }
 
     setChart(notes) {
-        this.chart = { notes: notes || [] };
+        this.chart = { notes: notes || [], transitions: [] };
         this.scheduledIndex = 0;
         this.activeNotes.forEach(a => {
             if (a.sprite) a.sprite.destroy();
@@ -160,6 +161,33 @@ export class Gameplay {
             if (a.arc) a.arc.destroy();
         });
         this.activeNotes = [];
+
+        // Reset transition controller
+        if (this.transitionController) {
+            this.transitionController.loadTransitions([]);
+        }
+    }
+
+    /**
+     * Set chart with transitions support
+     */
+    setChartWithTransitions(chartData) {
+        this.chart = {
+            notes: chartData.notes || [],
+            transitions: chartData.transitions || []
+        };
+        this.scheduledIndex = 0;
+        this.activeNotes.forEach(a => {
+            if (a.sprite) a.sprite.destroy();
+            if (a.ring) a.ring.destroy();
+            if (a.arc) a.arc.destroy();
+        });
+        this.activeNotes = [];
+
+        // Load transitions
+        if (this.transitionController) {
+            this.transitionController.loadTransitions(chartData.transitions || []);
+        }
     }
 
     /**
@@ -322,6 +350,11 @@ export class Gameplay {
         const tuning = VisualTuning;
         const time = performance.now() / 1000;
 
+        // Update transition controller
+        if (this.transitionController) {
+            this.transitionController.update(now);
+        }
+
         // Schedule notes from chart
         if (this.chart && this.chart.notes && this.scheduledIndex < this.chart.notes.length) {
             while (this.scheduledIndex < this.chart.notes.length) {
@@ -340,11 +373,24 @@ export class Gameplay {
             }
         }
 
-        // Update active notes with enhanced visuals
+        // Update active notes with enhanced visuals and ring mode support
         for (let i = this.activeNotes.length - 1; i >= 0; i--) {
             const a = this.activeNotes[i];
             const progress = (now - (a.targetTime - this.approachTime)) / this.approachTime;
-            const pos = this.zonePositions[a.zone];
+
+            // Get current position based on mode (Phase 3: Ring Mode Animation)
+            let pos;
+            if (a.mode === 'ring' && a.spawnPos && a.targetPos) {
+                // Ring mode: interpolate from spawn (center) to target (ring position)
+                const travelProgress = Math.max(0, Math.min(1, progress));
+                pos = {
+                    x: a.spawnPos.x + (a.targetPos.x - a.spawnPos.x) * travelProgress,
+                    y: a.spawnPos.y + (a.targetPos.y - a.spawnPos.y) * travelProgress
+                };
+            } else {
+                // Honeycomb mode: use zone position
+                pos = this.zonePositions[a.zone];
+            }
 
             if (!pos) {
                 if (a.sprite) a.sprite.destroy();
@@ -373,7 +419,15 @@ export class Gameplay {
             // Autoplay hit detection
             const hitThreshold = 0.98;
             if (progress >= hitThreshold && !a.hit) {
-                soundManager.play('perfect');
+                // Play appropriate sound based on note type
+                const noteType = a.note?.type;
+                if (noteType === 'ex') {
+                    soundManager.play('ex');
+                } else if (noteType === 'ex2') {
+                    soundManager.play('ex2');
+                } else {
+                    soundManager.play('perfect');
+                }
                 a.hit = true;
                 setTimeout(() => {
                     if (a.sprite) a.sprite.destroy();
@@ -389,11 +443,19 @@ export class Gameplay {
 
             const t = Math.max(0, Math.min(1, progress));
 
-            // Note body fade-in with enhanced alpha curve
+            // Note body position and alpha
             a.sprite.x = pos.x;
             a.sprite.y = pos.y;
-            const bodyAlpha = Math.min(1, t * tuning.timing.noteApproach.bodyAlphaMultiplier);
-            a.sprite.alpha = Math.max(0, Math.min(1, bodyAlpha));
+            a.sprite.alpha = Math.min(1.0, Math.pow(t, 0.3) * 1.5);
+
+            // Ring mode: scale notes from small to normal as they travel outward (Phase 3)
+            if (a.mode === 'ring') {
+                const scaleProgress = Math.max(0, Math.min(1, progress));
+                const noteScale = 0.3 + (0.7 * scaleProgress); // 0.3 -> 1.0
+                a.sprite.scale.set(noteScale);
+            } else {
+                a.sprite.scale.set(1.0);
+            }
 
             // Enhanced approach ring with rush effect
             if (a.ring) {
@@ -403,19 +465,22 @@ export class Gameplay {
                 // Quadratic ease-in for rush effect
                 const easedT = t * t;
                 const scaleRange = tuning.timing.noteApproach.ringStartScale - tuning.timing.noteApproach.ringEndScale;
-                const ringScale = tuning.timing.noteApproach.ringStartScale - (scaleRange * easedT);
+                let ringScale = tuning.timing.noteApproach.ringStartScale - (scaleRange * easedT);
+
+                // Ring mode: apply additional scaling based on travel progress (Phase 3)
+                if (a.mode === 'ring') {
+                    const scaleProgress = Math.max(0, Math.min(1, progress));
+                    const noteScale = 0.3 + (0.7 * scaleProgress);
+                    ringScale = ringScale * noteScale;
+                }
+
                 a.ring.scale.set(Math.max(
                     tuning.timing.noteApproach.ringMinScale,
                     Math.min(tuning.timing.noteApproach.ringMaxScale, ringScale)
                 ));
 
-                // Enhanced alpha with power curve
-                a.ring.alpha = Math.min(1.0, Math.pow(t, tuning.timing.noteApproach.ringAlphaPower) * tuning.timing.noteApproach.ringAlphaMultiplier);
-
-                // Update note body alpha to fade in (body is stored as 'sprite')
-                if (a.sprite) {
-                    a.sprite.alpha = Math.min(1.0, Math.pow(t, 0.5) * 1.2); // Fade in brighter and faster
-                }
+                // Enhanced alpha with power curve (brighter)
+                a.ring.alpha = Math.min(1.0, Math.pow(t, tuning.timing.noteApproach.ringAlphaPower) * 1.5);
 
                 // Add dynamic glow effect to ring
                 if (!a.ring.isTextureRing) {
@@ -424,30 +489,30 @@ export class Gameplay {
 
                     a.ring.clear();
 
-                    // Outer glow stroke
+                    // Outer glow stroke (brighter)
                     if (glowIntensity > 0.1) {
                         const glowWidth = baseLineWidth + (glowIntensity * 6);
-                        a.ring.lineStyle(glowWidth, tuning.colors.approachRing, glowIntensity * 0.4);
+                        a.ring.lineStyle(glowWidth, tuning.colors.approachRing, glowIntensity * 0.6);
                         this._drawHex(a.ring, 0, 0, this.zoneRadius);
                     }
 
-                    // Main ring stroke
-                    a.ring.lineStyle(baseLineWidth, tuning.colors.approachRing, tuning.visual.note.approachRingAlpha);
+                    // Main ring stroke (full brightness)
+                    a.ring.lineStyle(baseLineWidth, tuning.colors.approachRing, 1.0);
                     this._drawHex(a.ring, 0, 0, this.zoneRadius);
                 }
             }
 
-            // Enhanced timing arc
+            // Enhanced timing arc (brighter)
             if (a.arc) {
                 a.arc.x = pos.x;
                 a.arc.y = pos.y;
                 const vis = Math.max(0, (t - tuning.timing.noteApproach.arcVisibilityStart) * 2);
-                a.arc.alpha = vis * tuning.timing.noteApproach.arcAlpha;
+                a.arc.alpha = vis * 1.0; // Full brightness
 
                 // Redraw arc as partial circle
                 const frac = Math.max(0.02, 1 - t);
                 a.arc.clear();
-                a.arc.lineStyle(tuning.visual.note.timingArcLineWidth, tuning.colors.timingArc, tuning.timing.noteApproach.arcAlpha);
+                a.arc.lineStyle(tuning.visual.note.timingArcLineWidth, tuning.colors.timingArc, 1.0); // Full brightness
 
                 const r = this.zoneRadius * tuning.visual.note.timingArcRadius;
                 const steps = 64;

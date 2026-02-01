@@ -41,6 +41,9 @@ export class ChartData {
             // Auto-fix invalid notes instead of throwing errors
             if (note.type) {
                 switch (note.type) {
+                    case 'ex':
+                        // EX notes are special gold notes with bonus points
+                        break;
                     case 'hold':
                         if (!note.hold?.duration) {
                             note.type = 'regular';
@@ -151,6 +154,7 @@ export class ChartData {
         const stats = {
             total: this.raw.notes.length,
             regular: 0,
+            ex: 0,
             hold: 0,
             chain: 0,
             multi: 0
@@ -158,6 +162,7 @@ export class ChartData {
 
         this.raw.notes.forEach(note => {
             if (!note.type || note.type === 'regular') stats.regular++;
+            else if (note.type === 'ex') stats.ex++;
             else stats[note.type]++;
         });
 
@@ -179,6 +184,7 @@ export class ChartData {
 
         const densityScore = noteStats.total / duration * 0.8;
         const complexityScore = (
+            (noteStats.ex * 1.3) +
             (noteStats.hold * 1.2) +
             (noteStats.chain * 1.5) +
             (noteStats.multi * 2)
