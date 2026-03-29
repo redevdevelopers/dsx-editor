@@ -1,5 +1,6 @@
 {
     "geminicodeassist.agentDebugMode": true,
     "geminicodeassist.verboseLogging": true,
-    "geminicodeassist.chat.enableStreaming": true
+    "geminicodeassist.chat.enableStreaming": true,
+    "livePreview.defaultPreviewPath": "/chart-editor.html"
 }

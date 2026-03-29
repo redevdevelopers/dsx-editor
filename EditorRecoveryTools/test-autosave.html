@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Save Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #e0e0e0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+        .pass { color: #10b981; }
+        .fail { color: #ef4444; }
+        .info { color: #3b82f6; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        pre {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>DSX Editor Auto-Save System Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: localStorage Availability</h2>
+        <div id="test1-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Save Chart Data</h2>
+        <button onclick="testSaveChart()">Save Test Chart</button>
+        <div id="test2-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Verify Saved Data</h2>
+        <button onclick="testVerifyData()">Verify Data</button>
+        <div id="test3-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Triple Redundancy</h2>
+        <button onclick="testRedundancy()">Test Redundancy</button>
+        <div id="test4-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Recovery System</h2>
+        <button onclick="testRecovery()">Test Recovery</button>
+        <div id="test5-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 6: Data Integrity</h2>
+        <button onclick="testIntegrity()">Test Integrity</button>
+        <div id="test6-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Current Storage Status</h2>
+        <button onclick="showStorageStatus()">Show Status</button>
+        <div id="storage-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Clear All Data</h2>
+        <button onclick="clearAllData()" style="background: #ef4444;">Clear Everything</button>
+        <div id="clear-result"></div>
+    </div>
+
+    <script>
+        // Test 1: Check localStorage availability
+        function test1() {
+            const result = document.getElementById('test1-result');
+            try {
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                result.innerHTML = '<span class="pass">✓ PASS: localStorage is available</span>';
+                return true;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: localStorage not available - ${e.message}</span>`;
+                return false;
+            }
+        }
+
+        // Test 2: Save chart data
+        function testSaveChart() {
+            const result = document.getElementById('test2-result');
+            try {
+                const testChart = {
+                    chart: {
+                        meta: {
+                            title: 'Test Chart',
+                            artist: 'Test Artist',
+                            creator: 'Auto-Save Test',
+                            difficulty: 5,
+                            difficultyName: 'MASTER',
+                            bpm: { init: 180, min: 180, max: 180 }
+                        },
+                        timing: {
+                            offset: 0,
+                            bpmChanges: [{ time: 0, bpm: 180 }],
+                            timeSignatures: [{ time: 0, numerator: 4, denominator: 4 }]
+                        },
+                        notes: [
+                            { time: 1000, zone: 0, type: 'regular' },
+                            { time: 1500, zone: 1, type: 'regular' },
+                            { time: 2000, zone: 2, type: 'ex' },
+                            { time: 2500, zone: 3, type: 'regular' },
+                            { time: 3000, zone: 4, type: 'regular' }
+                        ]
+                    },
+                    timestamp: Date.now(),
+                    noteCount: 5,
+                    saveNumber: 1
+                };
+
+                const jsonData = JSON.stringify(testChart);
+                
+                // Primary save
+                localStorage.setItem('dsx-editor-autosave', jsonData);
+                
+                // Secondary backup
+                localStorage.setItem('dsx-editor-backup', jsonData);
+                
+                // Emergency backup
+                localStorage.setItem('dsx-editor-emergency', jsonData);
+
+                result.innerHTML = `
+                    <span class="pass">✓ PASS: Chart data saved successfully</span><br>
+                    <span class="info">Notes: ${testChart.chart.notes.length}</span><br>
+                    <span class="info">Size: ${(jsonData.length / 1024).toFixed(2)} KB</span>
+                `;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: ${e.message}</span>`;
+            }
+        }
+
+        // Test 3: Verify saved data
+        function testVerifyData() {
+            const result = document.getElementById('test3-result');
+            try {
+                const data = localStorage.getItem('dsx-editor-autosave');
+                if (!data) {
+                    result.innerHTML = '<span class="fail">✗ FAIL: No data found</span>';
+                    return;
+                }
+
+                const parsed = JSON.parse(data);
+                const noteCount = parsed.chart?.notes?.length || 0;
+                
+                if (noteCount === 0) {
+                    result.innerHTML = '<span class="fail">✗ FAIL: Notes array is empty!</span>';
+                    return;
+                }
+
+                result.innerHTML = `
+                    <span class="pass">✓ PASS: Data verified successfully</span><br>
+                    <span class="info">Title: ${parsed.chart.meta.title}</span><br>
+                    <span class="info">Notes: ${noteCount}</span><br>
+                    <span class="info">Timestamp: ${new Date(parsed.timestamp).toLocaleString()}</span><br>
+                    <pre>${JSON.stringify(parsed.chart.notes, null, 2)}</pre>
+                `;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: ${e.message}</span>`;
+            }
+        }
+
+        // Test 4: Test redundancy
+        function testRedundancy() {
+            const result = document.getElementById('test4-result');
+            try {
+                const primary = localStorage.getItem('dsx-editor-autosave');
+                const backup = localStorage.getItem('dsx-editor-backup');
+                const emergency = localStorage.getItem('dsx-editor-emergency');
+
+                let html = '';
+                let passCount = 0;
+
+                if (primary) {
+                    const data = JSON.parse(primary);
+                    html += `<span class="pass">✓ Primary: ${data.chart?.notes?.length || 0} notes</span><br>`;
+                    passCount++;
+                } else {
+                    html += '<span class="fail">✗ Primary: Not found</span><br>';
+                }
+
+                if (backup) {
+                    const data = JSON.parse(backup);
+                    html += `<span class="pass">✓ Backup: ${data.chart?.notes?.length || 0} notes</span><br>`;
+                    passCount++;
+                } else {
+                    html += '<span class="fail">✗ Backup: Not found</span><br>';
+                }
+
+                if (emergency) {
+                    const data = JSON.parse(emergency);
+                    html += `<span class="pass">✓ Emergency: ${data.chart?.notes?.length || 0} notes</span><br>`;
+                    passCount++;
+                } else {
+                    html += '<span class="fail">✗ Emergency: Not found</span><br>';
+                }
+
+                html += `<br><span class="${passCount === 3 ? 'pass' : 'fail'}">${passCount}/3 backups available</span>`;
+                result.innerHTML = html;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: ${e.message}</span>`;
+            }
+        }
+
+        // Test 5: Test recovery
+        function testRecovery() {
+            const result = document.getElementById('test5-result');
+            try {
+                let recoveryData = localStorage.getItem('dsx-editor-autosave');
+                let source = 'primary';
+
+                if (!recoveryData || recoveryData.length < 100) {
+                    recoveryData = localStorage.getItem('dsx-editor-backup');
+                    source = 'backup';
+                }
+
+                if (!recoveryData || recoveryData.length < 100) {
+                    recoveryData = localStorage.getItem('dsx-editor-emergency');
+                    source = 'emergency';
+                }
+
+                if (!recoveryData) {
+                    result.innerHTML = '<span class="fail">✗ FAIL: No recovery data available</span>';
+                    return;
+                }
+
+                const data = JSON.parse(recoveryData);
+                const noteCount = data.chart?.notes?.length || 0;
+                const age = Date.now() - data.timestamp;
+                const ageMinutes = Math.floor(age / 60000);
+
+                result.innerHTML = `
+                    <span class="pass">✓ PASS: Recovery data found</span><br>
+                    <span class="info">Source: ${source}</span><br>
+                    <span class="info">Notes: ${noteCount}</span><br>
+                    <span class="info">Age: ${ageMinutes} minutes</span><br>
+                    <span class="info">Title: ${data.chart.meta.title}</span>
+                `;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: ${e.message}</span>`;
+            }
+        }
+
+        // Test 6: Test data integrity
+        function testIntegrity() {
+            const result = document.getElementById('test6-result');
+            try {
+                const data = localStorage.getItem('dsx-editor-autosave');
+                if (!data) {
+                    result.innerHTML = '<span class="fail">✗ FAIL: No data to test</span>';
+                    return;
+                }
+
+                const parsed = JSON.parse(data);
+                let issues = [];
+
+                // Check required fields
+                if (!parsed.chart) issues.push('Missing chart object');
+                if (!parsed.chart?.meta) issues.push('Missing meta object');
+                if (!parsed.chart?.notes) issues.push('Missing notes array');
+                if (!parsed.timestamp) issues.push('Missing timestamp');
+                if (parsed.noteCount === undefined) issues.push('Missing noteCount');
+
+                // Check notes array
+                if (parsed.chart?.notes) {
+                    const notes = parsed.chart.notes;
+                    if (!Array.isArray(notes)) {
+                        issues.push('Notes is not an array');
+                    } else {
+                        notes.forEach((note, i) => {
+                            if (note.time === undefined) issues.push(`Note ${i}: missing time`);
+                            if (note.zone === undefined) issues.push(`Note ${i}: missing zone`);
+                            if (!note.type) issues.push(`Note ${i}: missing type`);
+                        });
+                    }
+                }
+
+                if (issues.length === 0) {
+                    result.innerHTML = `
+                        <span class="pass">✓ PASS: Data integrity verified</span><br>
+                        <span class="info">All required fields present</span><br>
+                        <span class="info">Notes array valid: ${parsed.chart.notes.length} notes</span>
+                    `;
+                } else {
+                    result.innerHTML = `
+                        <span class="fail">✗ FAIL: Data integrity issues</span><br>
+                        ${issues.map(i => `<span class="fail">- ${i}</span>`).join('<br>')}
+                    `;
+                }
+            } catch (e) {
+                result.innerHTML = `<span class="fail">✗ FAIL: ${e.message}</span>`;
+            }
+        }
+
+        // Show storage status
+        function showStorageStatus() {
+            const result = document.getElementById('storage-status');
+            try {
+                let html = '<h3>localStorage Contents:</h3>';
+                
+                const keys = ['dsx-editor-autosave', 'dsx-editor-backup', 'dsx-editor-emergency'];
+                
+                keys.forEach(key => {
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        try {
+                            const parsed = JSON.parse(data);
+                            html += `
+                                <div style="margin: 10px 0; padding: 10px; background: #2d2d2d; border-radius: 5px;">
+                                    <strong>${key}</strong><br>
+                                    Size: ${(data.length / 1024).toFixed(2)} KB<br>
+                                    Notes: ${parsed.chart?.notes?.length || 0}<br>
+                                    Timestamp: ${new Date(parsed.timestamp).toLocaleString()}<br>
+                                    Title: ${parsed.chart?.meta?.title || 'N/A'}
+                                </div>
+                            `;
+                        } catch (e) {
+                            html += `
+                                <div style="margin: 10px 0; padding: 10px; background: #2d2d2d; border-radius: 5px;">
+                                    <strong>${key}</strong><br>
+                                    <span class="fail">Corrupted data</span>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        html += `
+                            <div style="margin: 10px 0; padding: 10px; background: #2d2d2d; border-radius: 5px;">
+                                <strong>${key}</strong><br>
+                                <span class="info">Empty</span>
+                            </div>
+                        `;
+                    }
+                });
+
+                result.innerHTML = html;
+            } catch (e) {
+                result.innerHTML = `<span class="fail">Error: ${e.message}</span>`;
+            }
+        }
+
+        // Clear all data
+        function clearAllData() {
+            const result = document.getElementById('clear-result');
+            if (confirm('Are you sure you want to clear ALL auto-save data?')) {
+                localStorage.removeItem('dsx-editor-autosave');
+                localStorage.removeItem('dsx-editor-backup');
+                localStorage.removeItem('dsx-editor-emergency');
+                result.innerHTML = '<span class="pass">✓ All data cleared</span>';
+            }
+        }
+
+        // Run test 1 on load
+        window.onload = () => {
+            test1();
+        };
+    </script>
+</body>
+</html>

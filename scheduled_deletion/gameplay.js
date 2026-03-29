@@ -246,6 +246,7 @@ export class Gameplay {
     // Preview notes at a specific time (for scrubbing when paused)
     previewAtTime(timeMs) {
         if (this.running) return; // Only preview when stopped
+        if (!this.noteLayer) return; // Safety check: ensure noteLayer exists
 
         const tuning = VisualTuning;
         const previewWindow = 2000; // Show notes within 2 seconds
@@ -253,9 +254,9 @@ export class Gameplay {
         // Clear existing preview notes
         for (let i = this.activeNotes.length - 1; i >= 0; i--) {
             const a = this.activeNotes[i];
-            if (a.sprite) a.sprite.destroy();
-            if (a.ring) a.ring.destroy();
-            if (a.arc) a.arc.destroy();
+            if (a.sprite && a.sprite.parent) a.sprite.destroy();
+            if (a.ring && a.ring.parent) a.ring.destroy();
+            if (a.arc && a.arc.parent) a.arc.destroy();
         }
         this.activeNotes = [];
 
@@ -430,9 +431,9 @@ export class Gameplay {
                 }
                 a.hit = true;
                 setTimeout(() => {
-                    if (a.sprite) a.sprite.destroy();
-                    if (a.ring) a.ring.destroy();
-                    if (a.arc) a.arc.destroy();
+                    if (a.sprite && a.sprite.parent) a.sprite.destroy();
+                    if (a.ring && a.ring.parent) a.ring.destroy();
+                    if (a.arc && a.arc.parent) a.arc.destroy();
                     const index = this.activeNotes.indexOf(a);
                     if (index > -1) {
                         this.activeNotes.splice(index, 1);

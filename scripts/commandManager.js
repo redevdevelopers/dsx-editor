@@ -1,7 +1,12 @@
 export class CommandManager {
-    constructor() {
+    constructor(autoSaveManager = null) {
         this.history = [];
         this.currentIndex = -1;
+        this.autoSaveManager = autoSaveManager;
+    }
+
+    setAutoSaveManager(autoSaveManager) {
+        this.autoSaveManager = autoSaveManager;
     }
 
     execute(command) {
@@ -12,6 +17,11 @@ export class CommandManager {
         this.history.push(command);
         this.currentIndex++;
         command.execute();
+
+        // Mark as unsaved after executing command
+        if (this.autoSaveManager) {
+            this.autoSaveManager.markUnsaved();
+        }
     }
 
     undo() {
@@ -19,6 +29,11 @@ export class CommandManager {
             const command = this.history[this.currentIndex];
             command.undo();
             this.currentIndex--;
+
+            // Mark as unsaved after undo
+            if (this.autoSaveManager) {
+                this.autoSaveManager.markUnsaved();
+            }
         }
     }
 
@@ -27,6 +42,11 @@ export class CommandManager {
             this.currentIndex++;
             const command = this.history[this.currentIndex];
             command.execute();
+
+            // Mark as unsaved after redo
+            if (this.autoSaveManager) {
+                this.autoSaveManager.markUnsaved();
+            }
         }
     }
 }

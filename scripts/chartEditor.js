@@ -1,5 +1,5 @@
 import { ChartData } from './chartData.js';
-import { Gameplay } from './GameplayEngine/gameplay.js';
+import { ThreeGameplayPreview } from './GameplayEngine/ThreeGameplayPreview.js';
 import { InputHandler } from './input.js';
 import { Timeline } from './timeline.js';
 import { CommandManager, AddNoteCommand, AddRecordedNotesCommand } from './commandManager.js';
@@ -11,7 +11,7 @@ import { SelectionManager } from './selectionManager.js';
 import { AutoSaveManager } from './autoSave.js';
 import { FirstTimeSetup } from './firstTimeSetup.js';
 import { ThemeImporter } from './themeImporter.js';
-import { TransitionManager } from './transitionManager.js';
+
 
 export class ChartEditor {
     constructor({ editorCanvasContainer, timelineContainer, sidebarContainer, toolbarContainer, iconbarContainer }) {
@@ -49,7 +49,7 @@ export class ChartEditor {
             },
             sections: [],
             notes: [],
-            transitions: [], // Layout transitions (honeycomb <-> ring)
+
             // Markers will be handled as a session-only feature, not part of the chart data.
         };
         this._chartData = new ChartData(this._chart);
@@ -71,14 +71,7 @@ export class ChartEditor {
             waveformColor: '#00FF00',
             gameplayZoom: 1.0,
             bloomEnabled: false,
-            bloomIntensity: 0.0,
-            // Note colors
-            noteColors: {
-                regular: '#FFFFFF',  // White for regular notes
-                ex: '#FFD700',       // Gold for EX notes (special bonus notes)
-                ex2: '#FFD700',      // Gold for EX2 notes (same as EX, different sound)
-                multi: '#00BFFF'     // Deep Sky Blue for multi notes
-            }
+            bloomIntensity: 0.0
         };
 
         this.sessionMarkers = []; // Editor-only markers
@@ -88,9 +81,13 @@ export class ChartEditor {
         // Initialize new managers
         this.selectionManager = new SelectionManager();
         this.autoSaveManager = new AutoSaveManager(this);
+
+        // Connect command manager to auto-save manager
+        this.commandManager.setAutoSaveManager(this.autoSaveManager);
+
         this.autoMapper = null; // Will be initialized when audio is loaded
         this.themeImporter = new ThemeImporter(this);
-        this.transitionManager = new TransitionManager(this);
+
 
         // FPS tracking
         this.fpsCounter = {
@@ -138,7 +135,7 @@ export class ChartEditor {
             this.audioPlayer.volume = this._settings.musicVolume; // Apply saved music volume on creation
             document.body.appendChild(this.audioPlayer);
 
-            this.gameplay = new Gameplay({ parent: this.containers.editor, input: this.input, settings: {} });
+            this.gameplay = new ThreeGameplayPreview({ parent: this.containers.editor, input: this.input, settings: {} });
             this.approachSpeedInput.value = this.gameplay.approachTime; // Set initial value of approach speed input
 
             // Create a clock object that is slaved to the editor's audio player
@@ -165,8 +162,6 @@ export class ChartEditor {
             this._setupMenuListeners(); // Register menu event listeners
             this._setupRecording();
 
-            // Initialize transition manager
-            this.transitionManager.init();
 
             window.addEventListener('keydown', this._handleKeyDown.bind(this));
             window.addEventListener('resize', this._handleResize.bind(this));
@@ -176,6 +171,12 @@ export class ChartEditor {
             // Start auto-save manager
             this.autoSaveManager.start();
             this.autoSaveManager.setupBeforeUnload();
+
+            // Check for auto-save recovery
+            const recovery = this.autoSaveManager.checkRecovery();
+            if (recovery) {
+                this._showRecoveryDialog(recovery);
+            }
 
             // Stage 4: Finalizing
             this._updateLoadingStage('Ready', 'Editor initialized successfully');
@@ -335,11 +336,6 @@ export class ChartEditor {
                 // Apply theme on startup
                 if (settings.theme) {
                     setTimeout(() => this._applyTheme(settings.theme), 100);
-                }
-
-                // Apply note colors on startup
-                if (settings.noteColors) {
-                    setTimeout(() => this._applyNoteColorScheme(settings.noteColors), 100);
                 }
 
                 // Apply performance mode on startup
@@ -533,11 +529,7 @@ export class ChartEditor {
                     <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                 </svg>
             </button>
-            <button class="iconbar-button" id="iconbar-colors-btn" data-panel="colors" title="Note Colors">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-                </svg>
-            </button>
+
             <button class="iconbar-button" id="iconbar-stats-btn" data-panel="stats" title="Chart Statistics">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
@@ -757,33 +749,34 @@ export class ChartEditor {
             this.fpsCounter.app.lastTime = now;
         }
 
-        // Get gameplay FPS from PIXI
-        let gameplayFps = 0;
-        if (this.gameplay && this.gameplay.app && this.gameplay.app.ticker) {
-            gameplayFps = Math.round(this.gameplay.app.ticker.FPS);
-        }
-
-        statusFps.textContent = `FPS: ${this.fpsCounter.app.fps} / ${gameplayFps}`;
+        statusFps.textContent = `FPS: ${this.fpsCounter.app.fps}`;
     }
 
     _renderSidebarPanels() {
         this.containers.sidebar.innerHTML = `
             <div class="panel-group">
+                <!-- Chart Metadata Panel -->
                 <div class="panel collapsible">
                     <h3 class="panel-header" data-panel="metadata">
-                        <span>Chart Metadata</span>
                         <span class="collapse-icon">▼</span>
+                        <span class="panel-title">Chart Metadata</span>
                     </h3>
                     <div class="panel-content" id="panel-metadata">
-                        <label for="chart-title">Title:</label>
-                        <input type="text" id="chart-title" value="${this._chart.meta.title}" placeholder="Song Title">
-                        <label for="chart-artist">Artist:</label>
-                        <input type="text" id="chart-artist" value="${this._chart.meta.artist}" placeholder="Artist Name">
-                        <label for="chart-creator">Charter:</label>
-                        <input type="text" id="chart-creator" value="${this._chart.meta.creator}" placeholder="Your Name">
+                        <div class="input-group">
+                            <label for="chart-title">Song Title</label>
+                            <input type="text" id="chart-title" value="${this._chart.meta.title}" placeholder="Enter song title">
+                        </div>
+                        <div class="input-group">
+                            <label for="chart-artist">Artist</label>
+                            <input type="text" id="chart-artist" value="${this._chart.meta.artist}" placeholder="Enter artist name">
+                        </div>
+                        <div class="input-group">
+                            <label for="chart-creator">Charter</label>
+                            <input type="text" id="chart-creator" value="${this._chart.meta.creator}" placeholder="Your name">
+                        </div>
                         <div class="input-row">
                             <div class="input-col">
-                                <label for="chart-difficulty">Difficulty:</label>
+                                <label for="chart-difficulty">Difficulty</label>
                                 <select id="chart-difficulty">
                                     <option value="1" ${this._chart.meta.difficulty === 1 ? 'selected' : ''}>EASY</option>
                                     <option value="2" ${this._chart.meta.difficulty === 2 ? 'selected' : ''}>NORMAL</option>
@@ -793,201 +786,251 @@ export class ChartEditor {
                                 </select>
                             </div>
                             <div class="input-col">
-                                <label for="chart-level">Level:</label>
+                                <label for="chart-level">Level</label>
                                 <input type="number" id="chart-level" min="1" max="15" value="${this._chart.meta.level || 1}">
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Timing & Audio Panel -->
                 <div class="panel collapsible">
                     <h3 class="panel-header" data-panel="timing">
-                        <span>Timing & Audio</span>
                         <span class="collapse-icon">▼</span>
+                        <span class="panel-title">Timing & Audio</span>
                     </h3>
                     <div class="panel-content" id="panel-timing">
                         <div class="input-row">
                             <div class="input-col">
-                                <label for="bpm-input">BPM:</label>
+                                <label for="bpm-input">Initial BPM</label>
                                 <input type="number" id="bpm-input" value="${this._settings.bpm}">
                             </div>
                             <div class="input-col">
-                                <label for="offset-input">Offset (ms):</label>
+                                <label for="offset-input">Offset (ms)</label>
                                 <input type="number" id="offset-input" value="${this._settings.offset}">
                             </div>
                         </div>
-                        <label for="audio-input">Audio File:</label>
-                        <input type="file" id="audio-input" accept=".mp3, .wav, .ogg">
+                        
+                        <div class="bpm-changes-section">
+                            <div class="section-header">
+                                <label class="section-label">BPM Changes</label>
+                                <button class="button-small primary" id="add-bpm-change-btn" title="Add BPM change at current time">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                    </svg>
+                                    Add
+                                </button>
+                            </div>
+                            <div id="bpm-changes-list" class="bpm-changes-list">
+                                <!-- BPM changes will be populated here -->
+                            </div>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="audio-input">Audio File</label>
+                            <div class="file-input-wrapper">
+                                <input type="file" id="audio-input" accept=".mp3, .wav, .ogg">
+                            </div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Editor Settings Panel -->
                 <div class="panel collapsible">
                     <h3 class="panel-header" data-panel="editor">
-                        <span>Editor Settings</span>
                         <span class="collapse-icon">▼</span>
+                        <span class="panel-title">Editor Settings</span>
                     </h3>
                     <div class="panel-content" id="panel-editor">
-                        <label for="approach-speed-input">Approach Speed:</label>
-                        <input type="range" id="note-approach-speed-slider" min="100" max="5000" value="${this._settings.approachSpeed}" step="50">
-                        <input type="number" id="approach-speed-input" value="${this._settings.approachSpeed}" style="margin-top: 5px;">
+                        <div class="input-group">
+                            <label for="approach-speed-input">Approach Speed</label>
+                            <input type="range" id="note-approach-speed-slider" min="100" max="5000" value="${this._settings.approachSpeed}" step="50">
+                            <input type="number" id="approach-speed-input" value="${this._settings.approachSpeed}">
+                        </div>
                         <div class="checkbox-group">
                             <input type="checkbox" id="snap-toggle" ${this._settings.snapEnabled ? 'checked' : ''}>
                             <label for="snap-toggle">Snap to Beat</label>
                         </div>
-                        <label for="snap-division">Snap Division:</label>
-                        <select id="snap-division">
-                            <option value="1" ${this._settings.snapDivision === 1 ? 'selected' : ''}>1/1</option>
-                            <option value="2" ${this._settings.snapDivision === 2 ? 'selected' : ''}>1/2</option>
-                            <option value="4" ${this._settings.snapDivision === 4 ? 'selected' : ''}>1/4</option>
-                            <option value="8" ${this._settings.snapDivision === 8 ? 'selected' : ''}>1/8</option>
-                            <option value="16" ${this._settings.snapDivision === 16 ? 'selected' : ''}>1/16</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="panel collapsible collapsed">
-                    <h3 class="panel-header" data-panel="visual">
-                        <span>Visual Settings</span>
-                        <span class="collapse-icon">▶</span>
-                    </h3>
-                    <div class="panel-content" id="panel-visual" style="display: none;">
-                        <label for="gameplay-zoom-slider">Gameplay Zoom: <span id="gameplay-zoom-value">1.0x</span></label>
-                        <input type="range" id="gameplay-zoom-slider" min="0.5" max="2" value="1" step="0.1">
-                        <label for="waveform-color-input">Waveform Color:</label>
-                        <input type="color" id="waveform-color-input" value="${this._settings.waveformColor}">
-                    </div>
-                </div>
-
-                <div class="panel collapsible collapsed">
-                    <h3 class="panel-header" data-panel="colors">
-                        <span>Note Colors</span>
-                        <span class="collapse-icon">▶</span>
-                    </h3>
-                    <div class="panel-content" id="panel-colors" style="display: none;">
-                        <div class="color-grid">
-                            <label for="regular-note-color">Regular:</label>
-                            <input type="color" id="regular-note-color" value="#FF69B4">
-                            <label for="ex-note-color">EX:</label>
-                            <input type="color" id="ex-note-color" value="#FFD700">
-                            <label for="chain-note-color">Chain:</label>
-                            <input type="color" id="chain-note-color" value="#00CED1">
-                            <label for="multi-note-color">Multi:</label>
-                            <input type="color" id="multi-note-color" value="#FFD700">
-                            <label for="slide-note-color">Slide:</label>
-                            <input type="color" id="slide-note-color" value="#9370DB">
-                            <label for="flick-note-color">Flick:</label>
-                            <input type="color" id="flick-note-color" value="#FF6347">
+                        <div class="input-group">
+                            <label for="snap-division">Snap Division</label>
+                            <select id="snap-division">
+                                <option value="1" ${this._settings.snapDivision === 1 ? 'selected' : ''}>1/1</option>
+                                <option value="2" ${this._settings.snapDivision === 2 ? 'selected' : ''}>1/2</option>
+                                <option value="4" ${this._settings.snapDivision === 4 ? 'selected' : ''}>1/4</option>
+                                <option value="8" ${this._settings.snapDivision === 8 ? 'selected' : ''}>1/8</option>
+                                <option value="16" ${this._settings.snapDivision === 16 ? 'selected' : ''}>1/16</option>
+                            </select>
                         </div>
                     </div>
                 </div>
 
+                <!-- Note Palette Panel -->
+                <div class="panel note-palette-panel">
+                    <h3 class="panel-header-static">
+                        <span class="panel-title">Note Palette</span>
+                    </h3>
+                    <div class="panel-content">
+                        <div class="note-palette-grid">
+                            <button class="button primary note-btn" id="note-type-regular" data-note-type="regular">
+                                <span class="note-key">1</span>
+                                <span>Regular</span>
+                            </button>
+                            <button class="button ghost note-btn" id="note-type-ex" data-note-type="ex">
+                                <span class="note-key">2</span>
+                                <span>EX</span>
+                            </button>
+                            <button class="button ghost note-btn" id="note-type-ex2" data-note-type="ex2">
+                                <span class="note-key">3</span>
+                                <span>EX2</span>
+                            </button>
+                            <button class="button ghost note-btn" id="note-type-hold" data-note-type="hold">
+                                <span class="note-key">4</span>
+                                <span>Hold</span>
+                            </button>
+                            <button class="button ghost note-btn" id="note-type-flick" data-note-type="flick">
+                                <span class="note-key">5</span>
+                                <span>Flick</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visual Settings Panel -->
+                <div class="panel collapsible collapsed">
+                    <h3 class="panel-header" data-panel="visual">
+                        <span class="collapse-icon">▶</span>
+                        <span class="panel-title">Visual Settings</span>
+                    </h3>
+                    <div class="panel-content" id="panel-visual" style="display: none;">
+
+                        <div class="input-group">
+                            <label for="waveform-color-input">Waveform Color</label>
+                            <input type="color" id="waveform-color-input" value="${this._settings.waveformColor}">
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Chart Statistics Panel -->
                 <div class="panel collapsible collapsed">
                     <h3 class="panel-header" data-panel="stats">
-                        <span>Chart Statistics</span>
                         <span class="collapse-icon">▶</span>
+                        <span class="panel-title">Chart Statistics</span>
                     </h3>
                     <div class="panel-content" id="panel-stats" style="display: none;">
                         <div id="chart-stats">
-                            <div class="stat-row"><span>Total Notes:</span> <strong id="stat-total-notes">0</strong></div>
-                            <div class="stat-row"><span>Duration:</span> <strong id="stat-duration">0:00</strong></div>
-                            <div class="stat-row"><span>Notes/Sec:</span> <strong id="stat-nps">0.00</strong></div>
-                            <div class="stat-row"><span>Peak Density:</span> <strong id="stat-peak">0.00</strong></div>
+                            <div class="stat-row"><span>Total Notes</span> <strong id="stat-total-notes">0</strong></div>
+                            <div class="stat-row"><span>Duration</span> <strong id="stat-duration">0:00</strong></div>
+                            <div class="stat-row"><span>Notes/Sec</span> <strong id="stat-nps">0.00</strong></div>
+                            <div class="stat-row"><span>Peak Density</span> <strong id="stat-peak">0.00</strong></div>
                             <div class="stat-divider"></div>
-                            <div class="stat-row"><span>Regular:</span> <strong id="stat-regular">0</strong></div>
-                            <div class="stat-row"><span>Hold:</span> <strong id="stat-hold">0</strong></div>
-                            <div class="stat-row"><span>Chain:</span> <strong id="stat-chain">0</strong></div>
-                            <div class="stat-row"><span>Multi:</span> <strong id="stat-multi">0</strong></div>
-                            <div class="stat-row"><span>Slide:</span> <strong id="stat-slide">0</strong></div>
-                            <div class="stat-row"><span>Flick:</span> <strong id="stat-flick">0</strong></div>
+                            <div class="stat-row"><span>Regular</span> <strong id="stat-regular">0</strong></div>
+                            <div class="stat-row"><span>Hold</span> <strong id="stat-hold">0</strong></div>
+                            <div class="stat-row"><span>Chain</span> <strong id="stat-chain">0</strong></div>
+                            <div class="stat-row"><span>Multi</span> <strong id="stat-multi">0</strong></div>
+                            <div class="stat-row"><span>Slide</span> <strong id="stat-slide">0</strong></div>
+                            <div class="stat-row"><span>Flick</span> <strong id="stat-flick">0</strong></div>
                         </div>
                     </div>
                 </div>
 
+                <!-- AI Training Panel -->
                 <div class="panel collapsible collapsed">
                     <h3 class="panel-header" data-panel="ai-training">
-                        <span>AI Training</span>
                         <span class="collapse-icon">▶</span>
+                        <span class="panel-title">AI Training</span>
                     </h3>
                     <div class="panel-content" id="panel-ai-training" style="display: none;">
-                        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">
-                            Train the AI to learn your charting style and maimai patterns.
+                        <p class="panel-description">
+                            Train the AI to learn your charting style and patterns.
                         </p>
-                        <button class="button primary" id="train-current-chart-btn" style="width: 100%; margin-bottom: 8px;">
+                        <button class="button primary full-width" id="train-current-chart-btn">
                             Train from Current Chart
                         </button>
-                        <button class="button" id="train-multiple-charts-btn" style="width: 100%; margin-bottom: 8px;">
+                        <button class="button full-width" id="train-multiple-charts-btn">
                             Train from Multiple Charts
                         </button>
-                        <button class="button" id="train-other-format-btn" style="width: 100%; margin-bottom: 8px;">
+                        <button class="button full-width" id="train-other-format-btn">
                             Train from Other Game Format
                         </button>
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <button class="button ghost" id="export-model-btn" style="flex: 1;">
-                                Export Model
-                            </button>
-                            <button class="button ghost" id="import-model-btn" style="flex: 1;">
-                                Import Model
-                            </button>
+                        <div class="button-row">
+                            <button class="button ghost" id="export-model-btn">Export Model</button>
+                            <button class="button ghost" id="import-model-btn">Import Model</button>
                         </div>
-                        <button class="button ghost" id="clear-trained-model-btn" style="width: 100%;">
+                        <button class="button ghost full-width" id="clear-trained-model-btn">
                             Clear Trained Model
                         </button>
-                        <div id="training-status" style="margin-top: 10px; font-size: 12px; color: #64748b;">
+                        <div id="training-status" class="training-status">
                             No trained model
                         </div>
                     </div>
                 </div>
 
-                <div class="panel">
-                    <h3>Note Palette</h3>
-                    <div class="note-palette-grid">
-                        <button class="button primary note-btn" id="note-type-regular" data-note-type="regular">
-                            <span class="note-key">1</span> Regular
-                        </button>
-                        <button class="button ghost note-btn" id="note-type-ex" data-note-type="ex">
-                            <span class="note-key">2</span> EX
-                        </button>
-                        <button class="button ghost note-btn" id="note-type-ex2" data-note-type="ex2">
-                            <span class="note-key">3</span> EX2
-                        </button>
-                        <button class="button ghost note-btn" id="note-type-multi" data-note-type="multi">
-                            <span class="note-key">4</span> Multi
-                        </button>
-                    </div>
-                </div>
 
-                <div class="panel collapsible collapsed">
-                    <h3 class="panel-header" data-panel="transitions">
-                        <span>Layout Transitions</span>
-                        <span class="collapse-icon">▶</span>
-                    </h3>
-                    <div class="panel-content" id="panel-transitions" style="display: none;">
-                        <div id="transition-panel-content">
-                            <!-- Transition manager will populate this -->
-                        </div>
-                    </div>
-                </div>
-
+                <!-- Selected Note Properties Panel (Hidden by default) -->
                 <div id="note-properties-panel" class="panel" style="opacity: 0; display: none; pointer-events: none;">
-                    <h3>Selected Note</h3>
-                    <div class="input-row">
-                        <div class="input-col">
-                            <label for="note-time">Time (ms):</label>
-                            <input type="number" id="note-time">
+                    <h3 class="panel-header-static">
+                        <span class="panel-title">Selected Note</span>
+                    </h3>
+                    <div class="panel-content">
+                        <div class="input-row">
+                            <div class="input-col">
+                                <label for="note-time">Time (ms)</label>
+                                <input type="number" id="note-time">
+                            </div>
+                            <div class="input-col">
+                                <label for="note-zone">Zone</label>
+                                <input type="number" id="note-zone" min="0" max="3">
+                            </div>
                         </div>
-                        <div class="input-col">
-                            <label for="note-zone">Zone:</label>
-                            <input type="number" id="note-zone" min="0" max="3">
+                        <div class="input-group">
+                            <label for="note-type-select">Note Type</label>
+                            <select id="note-type-select">
+                                <option value="regular">Regular</option>
+                                <option value="ex">EX</option>
+                                <option value="ex2">EX2</option>
+                                <option value="multi">Multi</option>
+                                <option value="hold">Hold</option>
+                                <option value="flick">Flick</option>
+                            </select>
                         </div>
-                    </div>
-                    <div class="input-row">
-                        <label for="note-type-select">Note Type:</label>
-                        <select id="note-type-select">
-                            <option value="regular">Regular</option>
-                            <option value="ex">EX</option>
-                            <option value="ex2">EX2</option>
-                            <option value="multi">Multi</option>
-                        </select>
+                        <div class="input-group">
+                            <label for="note-hitsound-select">Hit Sound</label>
+                            <select id="note-hitsound-select">
+                                <option value="">Default</option>
+                                <option value="incoming">Incoming</option>
+                                <option value="tap">Tap</option>
+                                <option value="tap1">Tap Alternate</option>
+                                <option value="explosion">Tap Explosion</option>
+                                <option value="explosion2">Explosion 2</option>
+                                <option value="explosion3">Tap Explosion 3</option>
+                                <option value="fireworks">Fireworks</option>
+                                <option value="slide">Slide Hold</option>
+                                <option value="bad">Bad</option>
+                            </select>
+                        </div>
+                        <div class="input-group tail-property" style="display: none;">
+                            <label for="note-tailtype-select">Tail Type</label>
+                            <select id="note-tailtype-select">
+                                <option value="">Release (Default)</option>
+                                <option value="flick">Flick</option>
+                            </select>
+                        </div>
+                        <div class="input-group tail-property" style="display: none;">
+                            <label for="note-tailsound-select">Tail Sound</label>
+                            <select id="note-tailsound-select">
+                                <option value="">Default</option>
+                                <option value="incoming">Incoming</option>
+                                <option value="tap">Tap</option>
+                                <option value="tap1">Tap Alternate</option>
+                                <option value="explosion">Tap Explosion</option>
+                                <option value="explosion2">Explosion 2</option>
+                                <option value="explosion3">Tap Explosion 3</option>
+                                <option value="fireworks">Fireworks</option>
+                                <option value="slide">Slide Hold</option>
+                                <option value="bad">Bad</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1067,7 +1110,6 @@ export class ChartEditor {
         this.iconbarMetadataBtn = this.containers.iconbar.querySelector('#iconbar-metadata-btn');
         this.iconbarTimingBtn = this.containers.iconbar.querySelector('#iconbar-timing-btn');
         this.iconbarEditorBtn = this.containers.iconbar.querySelector('#iconbar-editor-btn');
-        this.iconbarColorsBtn = this.containers.iconbar.querySelector('#iconbar-colors-btn');
         this.iconbarStatsBtn = this.containers.iconbar.querySelector('#iconbar-stats-btn');
         this.redoBtn = this.containers.toolbar.querySelector('#redo-btn');
         this.playPauseBtn = this.containers.toolbar.querySelector('#play-pause-btn');
@@ -1088,19 +1130,14 @@ export class ChartEditor {
         this.snapToggle = this.containers.sidebar.querySelector('#snap-toggle');
         this.snapDivisionSelect = this.containers.sidebar.querySelector('#snap-division');
         this.waveformColorInput = this.containers.sidebar.querySelector('#waveform-color-input');
-        this.gameplayZoomSlider = this.containers.sidebar.querySelector('#gameplay-zoom-slider');
-        this.gameplayZoomValue = this.containers.sidebar.querySelector('#gameplay-zoom-value');
         this.playbackSpeedSelect = this.containers.toolbar.querySelector('#playback-speed');
-        this.regularNoteColorInput = this.containers.sidebar.querySelector('#regular-note-color');
-        this.exNoteColorInput = this.containers.sidebar.querySelector('#ex-note-color');
-        this.chainNoteColorInput = this.containers.sidebar.querySelector('#chain-note-color');
-        this.multiNoteColorInput = this.containers.sidebar.querySelector('#multi-note-color');
-        this.slideNoteColorInput = this.containers.sidebar.querySelector('#slide-note-color');
-        this.flickNoteColorInput = this.containers.sidebar.querySelector('#flick-note-color');
         this.notePropertiesPanel = this.containers.sidebar.querySelector('#note-properties-panel');
         this.noteTimeInput = this.containers.sidebar.querySelector('#note-time');
         this.noteZoneInput = this.containers.sidebar.querySelector('#note-zone');
         this.noteTypeSelect = this.containers.sidebar.querySelector('#note-type-select');
+        this.noteHitSoundSelect = this.containers.sidebar.querySelector('#note-hitsound-select');
+        this.noteTailTypeSelect = this.containers.sidebar.querySelector('#note-tailtype-select');
+        this.noteTailSoundSelect = this.containers.sidebar.querySelector('#note-tailsound-select');
         this.noteTypeButtons = this.containers.sidebar.querySelectorAll('.note-palette-grid .button');
 
         this.effectsVolumeSlider = this.containers.toolbar.querySelector('#effects-volume-slider');
@@ -1131,7 +1168,6 @@ export class ChartEditor {
         addListener(this.iconbarMetadataBtn, 'click', () => this._scrollToPanel('metadata'));
         addListener(this.iconbarTimingBtn, 'click', () => this._scrollToPanel('timing'));
         addListener(this.iconbarEditorBtn, 'click', () => this._scrollToPanel('editor'));
-        addListener(this.iconbarColorsBtn, 'click', () => this._scrollToPanel('colors'));
         addListener(this.iconbarStatsBtn, 'click', () => this._scrollToPanel('stats'));
 
         // --- Status Bar Settings Button ---
@@ -1201,6 +1237,14 @@ export class ChartEditor {
         addBlurListener(this.audioInput, 'change', this._loadAudioFromInput.bind(this));
         addBlurListener(this.noteApproachSpeedSlider, 'change', this._updateNoteApproachSpeedFromSlider.bind(this));
         addListener(this.noteApproachSpeedSlider, 'input', this._updateNoteApproachSpeedFromSlider.bind(this)); // For live update
+
+        // BPM Changes management
+        const addBpmChangeBtn = this.containers.sidebar.querySelector('#add-bpm-change-btn');
+        if (addBpmChangeBtn) {
+            addListener(addBpmChangeBtn, 'click', this._addBPMChange.bind(this));
+        }
+        this._updateBPMChangesList();
+
         addBlurListener(this.snapToggle, 'change', (e) => {
             if (this.timeline) this.timeline.snapEnabled = this.snapToggle.checked;
             this._settings.snapEnabled = this.snapToggle.checked;
@@ -1218,15 +1262,6 @@ export class ChartEditor {
             this.timeline.setWaveformColor(this._settings.waveformColor);
             this._saveSettings();
         });
-        addListener(this.gameplayZoomSlider, 'input', (e) => {
-            const zoom = parseFloat(e.target.value);
-            this._settings.gameplayZoom = zoom;
-            this.gameplayZoomValue.textContent = `${zoom.toFixed(1)}x`;
-            if (this.gameplay) {
-                this.gameplay.setZoom(zoom);
-            }
-            this._saveSettings();
-        });
         addBlurListener(this.playbackSpeedSelect, 'change', (e) => {
             const speed = parseFloat(e.target.value);
             if (this.audioPlayer) {
@@ -1234,27 +1269,16 @@ export class ChartEditor {
             }
             this._showToast(`Playback speed: ${speed}x`);
         });
-        // Note color inputs
-        const noteColorInputs = [
-            { input: this.regularNoteColorInput, type: 'regular' },
-            { input: this.exNoteColorInput, type: 'ex' },
-            { input: this.chainNoteColorInput, type: 'chain' },
-            { input: this.multiNoteColorInput, type: 'multi' },
-            { input: this.slideNoteColorInput, type: 'slide' },
-            { input: this.flickNoteColorInput, type: 'flick' }
-        ];
-        noteColorInputs.forEach(({ input, type }) => {
-            addBlurListener(input, 'change', (e) => {
-                this._settings.noteColors[type] = e.target.value;
-                if (this.gameplay) {
-                    this.gameplay.setNoteColor(type, e.target.value);
-                }
-                this._saveSettings();
-            });
-        });
         addBlurListener(this.noteTimeInput, 'change', (e) => this._updateSelectedNoteProperty('time', parseFloat(e.target.value)));
         addBlurListener(this.noteZoneInput, 'change', (e) => this._updateSelectedNoteProperty('zone', parseInt(e.target.value)));
-        addBlurListener(this.noteTypeSelect, 'change', (e) => this._updateSelectedNoteProperty('type', e.target.value));
+        addBlurListener(this.noteTypeSelect, 'change', (e) => {
+            this._updateSelectedNoteProperty('type', e.target.value);
+            this._toggleTailProperties(e.target.value);
+        });
+        addBlurListener(this.noteHitSoundSelect, 'change', (e) => this._updateSelectedNoteProperty('hitSound', e.target.value));
+        addBlurListener(this.noteTailTypeSelect, 'change', (e) => this._updateSelectedNoteProperty('tailType', e.target.value));
+        addBlurListener(this.noteTailSoundSelect, 'change', (e) => this._updateSelectedNoteProperty('tailSound', e.target.value));
+
 
         // --- Note Palette Buttons ---
         this.noteTypeButtons.forEach(button => {
@@ -1329,22 +1353,12 @@ export class ChartEditor {
         this.snapToggle.checked = this._settings.snapEnabled;
         this.snapDivisionSelect.value = this._settings.snapDivision;
         this.waveformColorInput.value = this._settings.waveformColor;
-        this.gameplayZoomSlider.value = this._settings.gameplayZoom;
-        this.gameplayZoomValue.textContent = `${this._settings.gameplayZoom.toFixed(1)}x`;
-        this.regularNoteColorInput.value = this._settings.noteColors.regular;
-        this.exNoteColorInput.value = this._settings.noteColors.ex;
-        this.chainNoteColorInput.value = this._settings.noteColors.chain;
-        this.multiNoteColorInput.value = this._settings.noteColors.multi;
-        this.slideNoteColorInput.value = this._settings.noteColors.slide;
-        this.flickNoteColorInput.value = this._settings.noteColors.flick;
         this.effectsVolumeSlider.value = this._settings.effectsVolume;
         this.musicVolumeSlider.value = this._settings.musicVolume;
         this.metronomeVolumeSlider.value = this._settings.metronomeVolume;
 
         // Apply loaded settings to gameplay and timeline
         this.gameplay.setNoteApproachTime(this._settings.approachSpeed);
-        this.gameplay.setZoom(this._settings.gameplayZoom);
-        this.gameplay.setNoteColors(this._settings.noteColors);
         this.timeline.setWaveformColor(this._settings.waveformColor);
         this.timeline.snapEnabled = this._settings.snapEnabled;
         this.timeline.snapDivision = this._settings.snapDivision;
@@ -1590,6 +1604,12 @@ export class ChartEditor {
                 this._selectNoteType('ex2');
                 break;
             case '4':
+                this._selectNoteType('hold');
+                break;
+            case '5':
+                this._selectNoteType('flick');
+                break;
+            case '6':
                 this._selectNoteType('multi');
                 break;
         }
@@ -1712,6 +1732,107 @@ export class ChartEditor {
             toast.style.animation = 'slideOut 0.3s ease-in';
             setTimeout(() => toast.remove(), 300);
         }, 2000);
+    }
+
+    _showRecoveryDialog(recovery) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8); z-index: 100001;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        `;
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: #1e293b; padding: 32px; border-radius: 12px;
+            color: #e2e8f0; font-family: 'ZenMaruGothic', sans-serif;
+            max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        `;
+
+        const chartTitle = recovery.data.chart?.meta?.title || 'Untitled Chart';
+        const noteCount = recovery.data.chart?.notes?.length || 0;
+
+        dialog.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="#10b981" style="flex-shrink: 0;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <div>
+                    <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 600;">Auto-Save Found</h2>
+                    <p style="margin: 0; font-size: 13px; color: #94a3b8;">We found unsaved work from ${recovery.age} minute${recovery.age !== 1 ? 's' : ''} ago</p>
+                </div>
+            </div>
+            
+            <div style="background: rgba(0,0,0,0.3); padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 3px solid #10b981;">
+                <div style="font-size: 14px; margin-bottom: 8px;"><strong>Chart:</strong> ${chartTitle}</div>
+                <div style="font-size: 14px; margin-bottom: 8px;"><strong>Notes:</strong> ${noteCount}</div>
+                <div style="font-size: 13px; color: #94a3b8;"><strong>Saved:</strong> ${recovery.timestamp.toLocaleString()}</div>
+            </div>
+
+            <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+                Would you like to restore your unsaved work?
+            </p>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button id="recovery-discard" style="
+                    padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600;
+                    background: transparent; border: 1px solid #475569; color: #e2e8f0;
+                    cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+                ">Discard</button>
+                <button id="recovery-restore" style="
+                    padding: 10px 20px; border-radius: 6px; font-size: 14px; font-weight: 600;
+                    background: #10b981; border: 1px solid #10b981; color: white;
+                    cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+                ">Restore</button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        // Button hover effects
+        const discardBtn = dialog.querySelector('#recovery-discard');
+        const restoreBtn = dialog.querySelector('#recovery-restore');
+
+        discardBtn.addEventListener('mouseenter', () => {
+            discardBtn.style.background = '#334155';
+        });
+        discardBtn.addEventListener('mouseleave', () => {
+            discardBtn.style.background = 'transparent';
+        });
+
+        restoreBtn.addEventListener('mouseenter', () => {
+            restoreBtn.style.background = '#059669';
+        });
+        restoreBtn.addEventListener('mouseleave', () => {
+            restoreBtn.style.background = '#10b981';
+        });
+
+        // Handle restore
+        restoreBtn.addEventListener('click', () => {
+            if (this.autoSaveManager.restore(recovery.data)) {
+                // Update UI with restored data
+                this._renderSidebarPanels();
+                this._setupEventListeners();
+                this._updateBPMChangesList();
+                this.timeline.update();
+                this._updateChartStatistics();
+
+                // Reload audio if it was saved
+                if (recovery.data.audioSrc) {
+                    this.audioPlayer.src = recovery.data.audioSrc;
+                }
+            }
+            overlay.remove();
+        });
+
+        // Handle discard
+        discardBtn.addEventListener('click', () => {
+            this.autoSaveManager.clearRecovery();
+            overlay.remove();
+        });
     }
 
     _showFormatSelectionDialog() {
@@ -1931,7 +2052,6 @@ export class ChartEditor {
         setVal('setting-master-volume', settings.masterVolume, 100);
         setVal('setting-metronome-volume', settings.metronomeVolume, 50);
         setVal('setting-audio-latency', settings.audioLatency, 0);
-        setVal('setting-note-colors', settings.noteColors, 'default');
         setChecked('setting-performance-mode', settings.performanceMode, false);
 
         // Set theme radio button
@@ -1964,7 +2084,6 @@ export class ChartEditor {
             metronomeVolume: parseInt(getVal('setting-metronome-volume')),
             audioLatency: parseInt(getVal('setting-audio-latency')),
             theme: getRadio('setting-theme') || 'dark',
-            noteColors: getVal('setting-note-colors'),
             performanceMode: getChecked('setting-performance-mode')
         };
 
@@ -2014,9 +2133,6 @@ export class ChartEditor {
 
         // Apply theme
         this._applyTheme(settings.theme);
-
-        // Apply note color scheme
-        this._applyNoteColorScheme(settings.noteColors);
 
         // Apply performance mode
         if (settings.performanceMode) {
@@ -2107,52 +2223,6 @@ export class ChartEditor {
         }
     }
 
-    _applyNoteColorScheme(scheme) {
-        if (!this._settings || !this._settings.noteColors) return;
-
-        if (scheme === 'rainbow') {
-            this._settings.noteColors = {
-                regular: '#FF0000',  // Red
-                ex: '#FF7F00',       // Orange
-                chain: '#FFFF00',    // Yellow
-                multi: '#00FF00',    // Green
-                slide: '#0000FF',    // Blue
-                flick: '#8B00FF'     // Violet
-            };
-        } else if (scheme === 'monochrome') {
-            this._settings.noteColors = {
-                regular: '#FFFFFF',  // White
-                ex: '#CCCCCC',       // Light gray
-                chain: '#999999',    // Medium gray
-                multi: '#FFFFFF',    // White
-                slide: '#666666',    // Dark gray
-                flick: '#AAAAAA'     // Gray
-            };
-        } else {
-            // Default colors
-            this._settings.noteColors = {
-                regular: '#FFFFFF',  // White
-                ex: '#FFD700',       // Gold
-                multi: '#00BFFF',    // Deep Sky Blue
-                chain: '#00CED1',    // Dark Turquoise
-                slide: '#9370DB',    // Medium Purple
-                flick: '#FF6347'     // Tomato Red
-            };
-        }
-
-        // Update color inputs in sidebar
-        if (this.regularNoteColorInput) this.regularNoteColorInput.value = this._settings.noteColors.regular;
-        if (this.exNoteColorInput) this.exNoteColorInput.value = this._settings.noteColors.ex;
-        if (this.chainNoteColorInput) this.chainNoteColorInput.value = this._settings.noteColors.chain;
-        if (this.multiNoteColorInput) this.multiNoteColorInput.value = this._settings.noteColors.multi;
-        if (this.slideNoteColorInput) this.slideNoteColorInput.value = this._settings.noteColors.slide;
-        if (this.flickNoteColorInput) this.flickNoteColorInput.value = this._settings.noteColors.flick;
-
-        // Redraw timeline to show new colors
-        if (this.timeline) {
-            this.timeline.update();
-        }
-    }
 
     _updateSettingsModalTheme(theme) {
         const modalContent = document.querySelector('.settings-modal-content');
@@ -2320,9 +2390,8 @@ export class ChartEditor {
                 this.pauseIcon.style.display = 'none';
             });
             this.gameplay.setChartWithTransitions({
-                notes: this._chartData.raw.notes,
-                transitions: this._chartData.raw.transitions || []
-            }); // Pass current chart notes and transitions to gameplay
+                notes: this._chartData.raw.notes
+            }); // Pass current chart notes to gameplay
             this.gameplay.start(); // Start gameplay simulation
             this._updateTimelineIndicator();
 
@@ -2438,6 +2507,10 @@ export class ChartEditor {
                 this.noteTimeInput.value = note.time.toFixed(2);
                 this.noteZoneInput.value = note.zone;
                 this.noteTypeSelect.value = note.type || 'regular';
+                this.noteHitSoundSelect.value = note.hitSound || '';
+                this.noteTailTypeSelect.value = note.tailType || '';
+                this.noteTailSoundSelect.value = note.tailSound || '';
+                this._toggleTailProperties(note.type);
                 return;
             }
             this.notePropertiesPanel.style.display = 'block';
@@ -2445,6 +2518,10 @@ export class ChartEditor {
             this.noteTimeInput.value = note.time.toFixed(2);
             this.noteZoneInput.value = note.zone;
             this.noteTypeSelect.value = note.type || 'regular';
+            this.noteHitSoundSelect.value = note.hitSound || '';
+            this.noteTailTypeSelect.value = note.tailType || '';
+            this.noteTailSoundSelect.value = note.tailSound || '';
+            this._toggleTailProperties(note.type);
             anime({ targets: this.notePropertiesPanel, opacity: [0, 1], translateY: ['-10px', '0px'], duration: 300, easing: 'easeOutCubic' });
         } else {
             if (this.notePropertiesPanel.style.opacity === '0') return;
@@ -2462,38 +2539,252 @@ export class ChartEditor {
         }
     }
 
-    _updateSelectedNoteProperty(property, value) {
-        if (this.selectedNote) {
-            const oldValue = this.selectedNote[property];
-            this.selectedNote[property] = value;
+    _toggleTailProperties(noteType) {
+        const display = noteType === 'hold' ? 'block' : 'none';
+        const els = this.containers.sidebar.querySelectorAll('.tail-property');
+        els.forEach(el => el.style.display = display);
+    }
 
-            // If changing type, update the note's visual representation
-            if (property === 'type') {
+    _updateSelectedNoteProperty(property, value) {
+        const selected = this.selectionManager.getSelection();
+        if (selected.length > 0) {
+            let changedAny = false;
+
+            selected.forEach(note => {
+                if (note[property] !== value) {
+                    note[property] = value;
+                    changedAny = true;
+                }
+            });
+
+            if (changedAny) {
                 // Mark as unsaved
                 this.autoSaveManager.markUnsaved();
-            }
 
-            // Re-sort notes if time changed
-            if (property === 'time') {
-                this._chartData.raw.notes.sort((a, b) => a.time - b.time);
-            }
+                // Re-sort notes if time changed
+                if (property === 'time') {
+                    this._chartData.raw.notes.sort((a, b) => a.time - b.time);
+                }
 
-            this.timeline.update();
+                this.timeline.update();
+            }
         }
     }
 
     _updateBpm() {
         const bpm = parseFloat(this.bpmInput.value);
         if (!isNaN(bpm)) {
-            this._chart.timing.bpmChanges = [{ time: 0, bpm: bpm }];
+            // Only update the FIRST BPM change (at time 0), preserve any other BPM changes
+            if (!this._chart.timing.bpmChanges || this._chart.timing.bpmChanges.length === 0) {
+                this._chart.timing.bpmChanges = [{ time: 0, bpm: bpm }];
+            } else {
+                // Update the first BPM change, keep the rest
+                this._chart.timing.bpmChanges[0].bpm = bpm;
+            }
+
             this._chart.meta.bpm.init = bpm;
-            this._chart.meta.bpm.min = bpm;
-            this._chart.meta.bpm.max = bpm;
+
+            // Recalculate min/max BPM from all BPM changes
+            const allBpms = this._chart.timing.bpmChanges.map(change => change.bpm);
+            this._chart.meta.bpm.min = Math.min(...allBpms);
+            this._chart.meta.bpm.max = Math.max(...allBpms);
+
             this._chartData.processTimingData();
             this.timeline.update();
             this._settings.bpm = bpm;
             this._saveSettings();
+            this._updateBPMChangesList();
         }
+    }
+
+    _addBPMChange() {
+        // Get current playback time or use 0
+        const currentTime = this.audioPlayer ? Math.floor(this.audioPlayer.currentTime * 1000) : 0;
+
+        // Prompt for time and BPM
+        const timeInput = prompt('Enter time (in milliseconds) for BPM change:', currentTime.toString());
+        if (timeInput === null) return; // User cancelled
+
+        const time = parseFloat(timeInput);
+        if (isNaN(time) || time < 0) {
+            this._showToast('Invalid time value', 'error');
+            return;
+        }
+
+        const bpmInput = prompt('Enter new BPM:', '120');
+        if (bpmInput === null) return; // User cancelled
+
+        const bpm = parseFloat(bpmInput);
+        if (isNaN(bpm) || bpm <= 0) {
+            this._showToast('Invalid BPM value', 'error');
+            return;
+        }
+
+        // Check if BPM change already exists at this time
+        const existingIndex = this._chart.timing.bpmChanges.findIndex(change => Math.abs(change.time - time) < 10);
+        if (existingIndex !== -1) {
+            // Update existing BPM change
+            this._chart.timing.bpmChanges[existingIndex].bpm = bpm;
+            this._showToast(`Updated BPM change at ${time}ms to ${bpm} BPM`);
+        } else {
+            // Add new BPM change
+            this._chart.timing.bpmChanges.push({ time, bpm });
+            this._chart.timing.bpmChanges.sort((a, b) => a.time - b.time);
+            this._showToast(`Added BPM change: ${bpm} BPM at ${time}ms`);
+        }
+
+        // Recalculate min/max BPM
+        const allBpms = this._chart.timing.bpmChanges.map(change => change.bpm);
+        this._chart.meta.bpm.min = Math.min(...allBpms);
+        this._chart.meta.bpm.max = Math.max(...allBpms);
+
+        // Reprocess timing data and update UI
+        this._chartData.processTimingData();
+        this.timeline.update();
+        this._updateBPMChangesList();
+        this.autoSaveManager.markUnsaved();
+    }
+
+    _removeBPMChange(index) {
+        if (index === 0) {
+            this._showToast('Cannot remove initial BPM (at time 0)', 'error');
+            return;
+        }
+
+        const change = this._chart.timing.bpmChanges[index];
+        if (confirm(`Remove BPM change: ${change.bpm} BPM at ${change.time}ms?`)) {
+            this._chart.timing.bpmChanges.splice(index, 1);
+
+            // Recalculate min/max BPM
+            const allBpms = this._chart.timing.bpmChanges.map(change => change.bpm);
+            this._chart.meta.bpm.min = Math.min(...allBpms);
+            this._chart.meta.bpm.max = Math.max(...allBpms);
+
+            // Reprocess timing data and update UI
+            this._chartData.processTimingData();
+            this.timeline.update();
+            this._updateBPMChangesList();
+            this.autoSaveManager.markUnsaved();
+            this._showToast('BPM change removed');
+        }
+    }
+
+    _editBPMChange(index) {
+        const change = this._chart.timing.bpmChanges[index];
+
+        // For the first BPM change (at time 0), only allow editing BPM, not time
+        if (index === 0) {
+            const bpmInput = prompt('Enter new BPM:', change.bpm.toString());
+            if (bpmInput === null) return;
+
+            const bpm = parseFloat(bpmInput);
+            if (isNaN(bpm) || bpm <= 0) {
+                this._showToast('Invalid BPM value', 'error');
+                return;
+            }
+
+            change.bpm = bpm;
+            this.bpmInput.value = bpm; // Update the main BPM input
+        } else {
+            // For other BPM changes, allow editing both time and BPM
+            const timeInput = prompt('Enter time (in milliseconds):', change.time.toString());
+            if (timeInput === null) return;
+
+            const time = parseFloat(timeInput);
+            if (isNaN(time) || time < 0) {
+                this._showToast('Invalid time value', 'error');
+                return;
+            }
+
+            const bpmInput = prompt('Enter new BPM:', change.bpm.toString());
+            if (bpmInput === null) return;
+
+            const bpm = parseFloat(bpmInput);
+            if (isNaN(bpm) || bpm <= 0) {
+                this._showToast('Invalid BPM value', 'error');
+                return;
+            }
+
+            change.time = time;
+            change.bpm = bpm;
+
+            // Re-sort after editing time
+            this._chart.timing.bpmChanges.sort((a, b) => a.time - b.time);
+        }
+
+        // Recalculate min/max BPM
+        const allBpms = this._chart.timing.bpmChanges.map(change => change.bpm);
+        this._chart.meta.bpm.min = Math.min(...allBpms);
+        this._chart.meta.bpm.max = Math.max(...allBpms);
+
+        // Reprocess timing data and update UI
+        this._chartData.processTimingData();
+        this.timeline.update();
+        this._updateBPMChangesList();
+        this.autoSaveManager.markUnsaved();
+        this._showToast('BPM change updated');
+    }
+
+    _updateBPMChangesList() {
+        const listContainer = this.containers.sidebar.querySelector('#bpm-changes-list');
+        if (!listContainer) return;
+
+        // Clear existing list
+        listContainer.innerHTML = '';
+
+        if (!this._chart.timing.bpmChanges || this._chart.timing.bpmChanges.length === 0) {
+            listContainer.innerHTML = '<div style="padding: 8px; text-align: center; opacity: 0.5; font-size: 12px;">No BPM changes</div>';
+            return;
+        }
+
+        // Create list items for each BPM change
+        this._chart.timing.bpmChanges.forEach((change, index) => {
+            const item = document.createElement('div');
+            item.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 6px 8px;
+                margin-bottom: 4px;
+                background: var(--bg-primary);
+                border-radius: 4px;
+                font-size: 12px;
+            `;
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex: 1;';
+
+            const timeStr = change.time === 0 ? 'Start' : `${(change.time / 1000).toFixed(2)}s`;
+            info.innerHTML = `
+                <div style="font-weight: 600;">${change.bpm} BPM</div>
+                <div style="opacity: 0.6; font-size: 11px;">at ${timeStr}</div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display: flex; gap: 4px;';
+
+            // Edit button
+            const editBtn = document.createElement('button');
+            editBtn.className = 'button ghost';
+            editBtn.style.cssText = 'padding: 2px 8px; font-size: 11px;';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = () => this._editBPMChange(index);
+            actions.appendChild(editBtn);
+
+            // Delete button (only for non-initial BPM changes)
+            if (index !== 0) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'button ghost';
+                deleteBtn.style.cssText = 'padding: 2px 8px; font-size: 11px; color: var(--danger-color);';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = () => this._removeBPMChange(index);
+                actions.appendChild(deleteBtn);
+            }
+
+            item.appendChild(info);
+            item.appendChild(actions);
+            listContainer.appendChild(item);
+        });
     }
 
     _updateApproachSpeed() {
@@ -3093,11 +3384,6 @@ export class ChartEditor {
                 // Update settings
                 this._settings.bpm = this._chart.meta.bpm.init || this._chart.meta.bpm || 120;
                 this._settings.offset = this._chart.timing.offset || 0;
-
-                // Load transitions if present
-                if (this.transitionManager) {
-                    this.transitionManager.loadTransitions(this._chart.transitions || []);
-                }
 
                 this._onNoteSelected(null);
                 this._showToast(`Imported: ${this._chart.meta.title || 'Untitled'}`);

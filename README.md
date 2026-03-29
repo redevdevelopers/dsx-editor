@@ -2,19 +2,34 @@
   <img width="1000" alt="DreamSync Studio logo" src="dssgithublogo.png">
 </p>
 
-# DreamSync Studio 4
+# DreamSync Studio 5
 
-Professional chart editor for DreamSyncX with AI-powered auto-mapping capabilities.
+Professional chart editor for DreamSyncX with AI-powered auto-mapping and dynamic layout transitions.
 
-**Version 4.0** - Professional enhanced UI/UX interface, Optimized workflow, AI Chart Mapping, 10 built-in themes and bunch of other more!
+**Version 5.0** - Dynamic layout transitions, enhanced note types, ring mode animation, and comprehensive transition management system!
 
-## What's New in v4.0
+## What's New in v5.0
 
-### 🎨 Enhanced User Experience
-- **10 Built-in Themes** - Choose from Light, Dark, OLED, High Contrast, Dracula, Monokai, Tokyo Night, Nord, Solarized Dark, and GitHub Dark
-- **Professional Menu Bar** - Complete menu system with File, Edit, View, Playback, Tools, and Help menus
-- **Fully Resizable Window** - Discord-style window management with smooth loading
-- **Keyboard Navigation** - Full keyboard support throughout the application
+### � Dynamic Layout Transitions
+- **Seamless Mode Switching** - Transition between Honeycomb and Ring layouts during gameplay
+- **Fully Animated** - Smooth hex repositioning with 7 easing functions (Linear, Cubic, Quart, Quint, Elastic, Bounce)
+- **Visual Effects** - Screen flash, particle bursts, and smooth scaling animations
+- **Ring Mode** - maimai-inspired circular layout with center marker and boundary
+- **Bidirectional** - Charts can switch between modes multiple times
+- **Transition Manager** - Visual editor with presets and advanced customization
+
+### 🎵 Enhanced Note Types
+- **EX Notes** - Special bonus notes with gold color and unique sound effect
+- **EX2 Notes** - Advanced EX notes with different audio feedback
+- **Multi Notes** - Simultaneous multi-zone hits with deep sky blue color
+- **Color-Coded Timeline** - Easy identification of note types in the editor
+
+### ✨ Ring Mode Features
+- **Center-to-Outer Animation** - Notes spawn at center and travel outward
+- **Smooth Scaling** - Notes scale from 0.3x to 1.0x during travel
+- **Larger Ring Boundary** - 10% bigger with scale-up animation (0.85x to 1.0x)
+- **Center Marker** - Hexagonal marker with pulsing ring and crosshair
+- **Optimized Travel Time** - 200ms for optimal readability
 
 ## Features
 
@@ -25,6 +40,24 @@ Professional chart editor for DreamSyncX with AI-powered auto-mapping capabiliti
 - **Undo/Redo System** - Full history with Ctrl+Z/Ctrl+Y
 - **Auto-Save** - Never lose your work
 - **Real-Time Preview** - Test your chart instantly with gameplay preview
+- **Note Type Selection** - Regular, EX, EX2, and Multi notes with keyboard shortcuts (1-5)
+
+### Dynamic Layout Transitions
+- **Transition Editor** - Visual panel for managing layout transitions
+- **6 Preset Configurations** - Quick, Standard, Smooth, Dramatic, Bouncy, Elastic
+- **Advanced Customization** - Duration (500-2000ms), easing, scale range, camera zoom
+- **Visual Effects** - Flash intensity (0-100%), particle count (0-100)
+- **Timeline Integration** - Transition markers for easy navigation
+- **Real-Time Preview** - See transitions during playback
+- **Seek Detection** - Instant mode switching when scrubbing timeline
+
+### Ring Mode
+- **Circular Layout** - maimai-inspired ring arrangement of hexagons
+- **Note Animation** - Notes spawn at center and travel outward
+- **Smooth Scaling** - 0.3x to 1.0x scaling during travel
+- **Ring Boundary** - Hexagonal guide with glow effect
+- **Center Marker** - Pulsing hexagon with crosshair
+- **Combo Repositioning** - Moves to bottom-left in ring mode
 
 ### AI Auto-Mapper
 - **Intelligent Chart Generation** - AI analyzes audio and creates charts
@@ -148,6 +181,10 @@ You can change themes anytime in Settings (Ctrl+,).
 - `Ctrl+C` - Copy selected notes
 - `Ctrl+V` - Paste notes
 - `Ctrl+X` - Cut selected notes
+- `1` - Select Regular note type
+- `2` - Select EX note type
+- `3` - Select EX2 note type
+- `4` - Select Multi note type
 
 ### View
 - `Ctrl++` / `Ctrl+=` - Zoom in
@@ -365,14 +402,17 @@ Currently exports to DSX JSON format only.
 - BPM changes during song may need manual adjustment
 - Very long songs (10+ minutes) may have performance issues
 - Model training requires significant memory (3GB+ beatmaps)
+- Camera zoom disabled in editor (always 1.0x for stability)
+- Transition panel may not appear in browser mode (use Electron app)
 
 ---
 
 ## Credits
 
-**DreamSync Studio 4**
+**DreamSync Studio 5**
 - Developed by **Kynix Teams** for the DreamSyncX rhythm game
 - AI training system inspired by osu!mania and maimai
+- Dynamic layout transitions inspired by maimai
 - Built with Electron, PixiJS, and Web Audio API
 - Open source project maintained by the community
 
@@ -403,6 +443,20 @@ For issues, suggestions, or questions:
 ---
 
 ## Version History
+
+**Version 5.0.0 (February 2026)**
+- Dynamic layout transitions (Honeycomb ↔ Ring mode)
+- Ring mode note animation (center-to-outer travel)
+- Enhanced note types (EX, EX2, Multi)
+- Transition management panel with presets
+- 7 easing functions for smooth animations
+- Visual effects (screen flash, particle bursts)
+- Seek detection for instant mode switching
+- Larger ring boundary with scale-up animation
+- Color-coded timeline markers
+- Note type keyboard shortcuts (1-5)
+- Comprehensive transition customization
+- Real-time preview of transitions
 
 **Version 4.0.0 (January 2026)**
 - Enhanced first-time setup wizard with EULA and feature highlights

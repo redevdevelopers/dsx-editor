@@ -45,9 +45,10 @@ export class ChartData {
                         // EX notes are special gold notes with bonus points
                         break;
                     case 'hold':
-                        if (!note.hold?.duration) {
+                        // Support both legacy note.hold.duration and modern note.duration
+                        if (!note.hold?.duration && !note.duration) {
                             note.type = 'regular';
-                            delete note.hold;
+                            if (note.hold) delete note.hold;
                         }
                         break;
                     case 'chain':

@@ -4,7 +4,7 @@ export class FirstTimeSetup {
         this.currentStep = 0;
         this.steps = [
             {
-                title: 'Welcome to DreamSync Studio 4!',
+                title: 'Welcome to DreamSync Studio 6!',
                 content: 'Professional chart editor with AI auto mapping. Designed for DreamSyncX.',
                 icon: '👋',
                 features: [
@@ -12,6 +12,12 @@ export class FirstTimeSetup {
                     { icon: '🎵', text: 'Visual Timeline' },
                     { icon: '⚡', text: 'Real-time Preview' }
                 ]
+            },
+            {
+                title: 'Checking for Updates',
+                content: 'Verifying you have the latest version...',
+                icon: '🔄',
+                isUpdateCheck: true
             },
             {
                 title: 'License Agreement',
@@ -346,7 +352,40 @@ export class FirstTimeSetup {
                     `;
                 });
                 bodyHTML += '</div>';
-                bodyHTML += `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">Version 4.0 RELEASE (30/1/2026)</div>`;
+                bodyHTML += `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">Version 6.0.0 RELEASE (30/3/2026)</div>`;
+            }
+
+            // Render update check screen
+            if (step.isUpdateCheck) {
+                bodyHTML += `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 200px;
+                    gap: 20px;
+                ">
+                    <div id="update-spinner" style="
+                        width: 48px;
+                        height: 48px;
+                        border: 4px solid rgba(102, 126, 234, 0.2);
+                        border-top-color: #667eea;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    "></div>
+                    <div id="update-status" style="
+                        font-size: 14px;
+                        color: #666;
+                        text-align: center;
+                    ">Checking for updates...</div>
+                </div>
+                <style>
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                </style>
+                `;
             }
 
             // Render EULA content
@@ -391,7 +430,7 @@ export class FirstTimeSetup {
                     
                     <p><strong>Last Updated:</strong> January 30, 2026</p>
                     
-                    <p>This End User License Agreement ("Agreement") is a legal agreement between you ("User", "You") and Redevon Studios / Kynix Teams ("Licensor", "We", "Us") for the use of DreamSync Studio 4 ("Software", "Application").</p>
+                    <p>This End User License Agreement ("Agreement") is a legal agreement between you ("User", "You") and Redevon Studios / Kynix Teams ("Licensor", "We", "Us") for the use of DreamSync Studio 6 ("Software", "Application").</p>
                     
                     <p><strong>BY CLICKING "ACCEPT" OR BY INSTALLING, COPYING, OR OTHERWISE USING THE SOFTWARE, YOU AGREE TO BE BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE TO THE TERMS OF THIS AGREEMENT, CLICK "DECLINE" AND DO NOT INSTALL OR USE THE SOFTWARE.</strong></p>
 
@@ -1088,7 +1127,50 @@ export class FirstTimeSetup {
                 bodyEl.style.opacity = '1';
                 bodyEl.style.transform = 'scale(1)';
             }, 50);
+
+            // Handle update check step
+            if (step.isUpdateCheck) {
+                this.performUpdateCheck();
+            }
         }, 200);
+    }
+
+    async performUpdateCheck() {
+        const statusEl = document.getElementById('update-status');
+        const spinnerEl = document.getElementById('update-spinner');
+
+        try {
+            // Check if electronAPI is available
+            if (window.electronAPI && window.electronAPI.checkForUpdates) {
+                await window.electronAPI.checkForUpdates();
+
+                // Update completed
+                if (statusEl) statusEl.textContent = 'Update check complete!';
+                if (spinnerEl) {
+                    spinnerEl.style.borderTopColor = '#4caf50';
+                    spinnerEl.style.animation = 'none';
+                }
+            } else {
+                // Development mode or update check not available
+                if (statusEl) statusEl.textContent = 'Running in development mode';
+                if (spinnerEl) {
+                    spinnerEl.style.borderTopColor = '#999';
+                    spinnerEl.style.animation = 'none';
+                }
+            }
+        } catch (error) {
+            console.error('Update check failed:', error);
+            if (statusEl) statusEl.textContent = 'Update check skipped';
+            if (spinnerEl) {
+                spinnerEl.style.borderTopColor = '#999';
+                spinnerEl.style.animation = 'none';
+            }
+        }
+
+        // Auto-advance after 1 second
+        setTimeout(() => {
+            this.nextStep();
+        }, 1000);
     }
 
     nextStep() {

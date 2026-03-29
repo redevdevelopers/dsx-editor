@@ -12,3 +12,7 @@ npx electron .
 # This command packages the application and creates the Windows installer (.exe).
 # The output will be in the /dist folder.
 npm run dist
+
+## 4. Run as developer
+# This command will test the app in development mode with updater disabled.
+npm start/npm electron .

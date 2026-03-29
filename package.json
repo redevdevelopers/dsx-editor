@@ -1,6 +1,6 @@
 {
   "name": "dsx-editor",
-  "version": "4.0.0",
+  "version": "6.0.0",
   "description": "A rhythm game chart editor for DreamSyncX.",
   "main": "main.js",
   "scripts": {
@@ -9,9 +9,13 @@
     "dist": "electron-builder"
   },
   "keywords": [],
-  "author": "Kyrilla@Redevon",
+  "author": "Kyrin Hiron",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3",
+    "three": "^0.183.2"
+  },
   "devDependencies": {
     "@types/pixi.js": "^5.0.0",
     "electron": "^31.2.1",
@@ -20,8 +24,16 @@
   },
   "build": {
     "appId": "com.kynix.dsx.editor",
-    "productName": "DreamSync Studio 4",
+    "productName": "DreamSync Studio 6",
     "copyright": "Copyright © 2026 Redevon Community. All rights reserved.",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "redevdevelopers",
+        "repo": "dsx-editor",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
@@ -36,18 +48,22 @@
       {
         "from": "assets",
         "to": "assets",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon/dsxicon256.ico",
-      "publisherName": "Redevon Studios",
+      "publisherName": "Redevon Developers",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {

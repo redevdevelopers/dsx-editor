@@ -55,7 +55,15 @@ export class SoundManager {
                 good: 'assets/misc/JudgementsSFX/DSX_GAME_GOOD.wav',
                 ex: 'assets/misc/JudgementsSFX/DSX_GAME_EX1.wav',
                 ex2: 'assets/misc/JudgementsSFX/DSX_GAME_EX2.wav',
-                incoming: 'assets/misc/JudgementsSFX/DSX_GAME_INCOMING.wav'
+                incoming: 'assets/misc/JudgementsSFX/DSX_GAME_INCOMING.wav',
+                bad: 'assets/misc/JudgementsSFX/DSX_GAME_BAD.wav',
+                explosion: 'assets/misc/JudgementsSFX/DSX_TAP_EXPLOSION.wav',
+                explosion2: 'assets/misc/JudgementsSFX/DSX_EXPLOSION_2.wav',
+                explosion3: 'assets/misc/JudgementsSFX/DSX_TAP_EXPLOSION_3.wav',
+                fireworks: 'assets/misc/JudgementsSFX/DSX_FIREWORKS.wav',
+                slide: 'assets/misc/JudgementsSFX/DSX_SLIDE_HOLD.wav',
+                tap1: 'assets/misc/JudgementsSFX/DSX_TAPNOTE1.wav',
+                tap: 'assets/misc/JudgementsSFX/DSX_TAP_NOTE.wav'
             };
 
             this.totalSounds = Object.keys(sfxList).length;

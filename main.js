@@ -1,6 +1,9 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs').promises; // Use the promise-based version of fs
+const AutoUpdater = require('./autoUpdater');
+
+let updater = null;
 
 function createWindow() {
     const win = new BrowserWindow({
@@ -17,17 +20,19 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             enableRemoteModule: false,
-            devTools: false // Disable DevTools completely
+            devTools: !app.isPackaged // Enable DevTools in development mode
         },
         autoHideMenuBar: false,
         frame: true,
         resizable: true,
     });
 
-    // Prevent DevTools from being opened
-    win.webContents.on('devtools-opened', () => {
-        win.webContents.closeDevTools();
-    });
+    // Prevent DevTools in production only
+    if (app.isPackaged) {
+        win.webContents.on('devtools-opened', () => {
+            win.webContents.closeDevTools();
+        });
+    }
 
     // Block F12 and other DevTools shortcuts
     win.webContents.on('before-input-event', (event, input) => {
@@ -456,21 +461,25 @@ function createWindow() {
                 {
                     label: 'Check for Updates',
                     click: () => {
-                        dialog.showMessageBox({
-                            type: 'info',
-                            title: 'Updates',
-                            message: 'You are running the latest version.',
-                            buttons: ['OK']
-                        });
+                        if (updater) {
+                            updater.checkForUpdates();
+                        } else {
+                            dialog.showMessageBox({
+                                type: 'info',
+                                title: 'Updates',
+                                message: 'Auto-updater not available in development mode.',
+                                buttons: ['OK']
+                            });
+                        }
                     }
                 },
                 {
-                    label: 'About DreamSync Studio 4',
+                    label: 'About DreamSync Studio',
                     click: () => {
                         dialog.showMessageBox({
                             type: 'info',
-                            title: 'About DreamSync Studio 4',
-                            message: `DreamSync Studio 4 v4.0.0\n\nProfessional chart editor for DreamSyncX\nBased on DSX V1.56-G\n\nCompiled: January 30, 2026\n\n© 2026 Redevon Studios / Kynix Teams`,
+                            title: 'About DreamSync Studio',
+                            message: `DreamSync Studio 6 \n\nProfessional chart editor for DreamSyncX\nBased on DSX V1.56-C\n\nCompiled: March 30, 2026\n\n© 2026 Redevon Studios / Kynix Teams`,
                             buttons: ['OK']
                         });
                     }
@@ -479,15 +488,58 @@ function createWindow() {
         }
     ];
 
+    // Add Developer menu in development mode
+    if (!app.isPackaged) {
+        template.push({
+            label: 'Developer',
+            submenu: [
+                {
+                    label: 'Toggle DevTools',
+                    accelerator: 'F12',
+                    click: () => {
+                        const window = BrowserWindow.getFocusedWindow();
+                        if (window) {
+                            window.webContents.toggleDevTools();
+                        }
+                    }
+                },
+                {
+                    label: 'Reload',
+                    accelerator: 'CmdOrCtrl+R',
+                    click: () => {
+                        const window = BrowserWindow.getFocusedWindow();
+                        if (window) {
+                            window.webContents.reload();
+                        }
+                    }
+                },
+                {
+                    label: 'Force Reload',
+                    accelerator: 'CmdOrCtrl+Shift+R',
+                    click: () => {
+                        const window = BrowserWindow.getFocusedWindow();
+                        if (window) {
+                            window.webContents.reloadIgnoringCache();
+                        }
+                    }
+                }
+            ]
+        });
+    }
+
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
+
+    return win;
 }
 
 app.whenReady().then(() => {
-    app.commandLine.appendSwitch('enable-gpu-rasterization');
-    app.commandLine.appendSwitch('ignore-gpu-blacklist');
+    // Reduce GPU load for weaker systems
+    app.commandLine.appendSwitch('disable-gpu-vsync');
     app.commandLine.appendSwitch('disable-software-rasterizer');
-    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8096');
+    app.commandLine.appendSwitch('disable-gpu-compositing'); // NEW: Reduce GPU load
+    app.commandLine.appendSwitch('num-raster-threads', '2'); // NEW: Limit threads
+    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096'); // Reduced from 8096
     app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
     // Register IPC handlers before creating window
@@ -496,8 +548,18 @@ app.whenReady().then(() => {
     ipcMain.handle('dialog:openMultipleFiles', handleOpenMultipleFiles);
     ipcMain.handle('dialog:openBeatmapFiles', handleOpenBeatmapFiles);
     ipcMain.handle('dialog:openAudioFile', handleOpenAudioFile);
+    ipcMain.handle('check-for-updates', handleCheckForUpdates);
+    ipcMain.handle('save-backup', handleSaveBackup);
 
-    createWindow();
+    const mainWindow = createWindow();
+
+    // Initialize auto-updater (only in production)
+    if (!app.isPackaged) {
+        console.log('Running in development mode - auto-updater disabled');
+    } else {
+        updater = new AutoUpdater(mainWindow);
+        // Don't check automatically on startup anymore - initialization screen will handle it
+    }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -651,5 +713,61 @@ async function handleOpenAudioFile() {
         console.error('Failed to read audio file', error);
         dialog.showErrorBox('File Read Error', `Could not read the audio file: ${error.message}`);
         return { canceled: true, error: error.message };
+    }
+}
+
+async function handleCheckForUpdates() {
+    return new Promise((resolve) => {
+        if (!app.isPackaged || !updater) {
+            // Development mode or updater not available
+            resolve();
+            return;
+        }
+
+        // Use the callback-based method with timeout
+        updater.checkForUpdatesWithCallback(() => {
+            resolve();
+        });
+    });
+}
+
+async function handleSaveBackup(event, jsonData) {
+    try {
+        const userDataPath = app.getPath('userData');
+        const backupDir = path.join(userDataPath, 'backups');
+
+        // Create backups directory if it doesn't exist
+        try {
+            await fs.mkdir(backupDir, { recursive: true });
+        } catch (err) {
+            // Directory might already exist
+        }
+
+        // Keep last 10 backups with timestamps
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFile = path.join(backupDir, `autosave-${timestamp}.json`);
+
+        await fs.writeFile(backupFile, jsonData, 'utf-8');
+
+        // Clean up old backups (keep only last 10)
+        const files = await fs.readdir(backupDir);
+        const backupFiles = files
+            .filter(f => f.startsWith('autosave-') && f.endsWith('.json'))
+            .map(f => ({ name: f, path: path.join(backupDir, f) }))
+            .sort((a, b) => b.name.localeCompare(a.name)); // Sort newest first
+
+        // Delete old backups beyond the 10 most recent
+        for (let i = 10; i < backupFiles.length; i++) {
+            try {
+                await fs.unlink(backupFiles[i].path);
+            } catch (err) {
+                console.error('Failed to delete old backup:', err);
+            }
+        }
+
+        return { success: true, backupPath: backupFile };
+    } catch (error) {
+        console.error('Failed to save backup:', error);
+        return { success: false, error: error.message };
     }
 }

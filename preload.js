@@ -46,5 +46,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     removeMenuListener: (channel, callback) => {
         ipcRenderer.removeListener(channel, callback);
-    }
+    },
+
+    /**
+     * Check for updates (for initialization screen)
+     * @returns {Promise<void>}
+     */
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+    /**
+     * Save backup file to disk
+     * @param {string} jsonData - The JSON data to backup
+     * @returns {Promise<{success: boolean, backupPath?: string, error?: string}>}
+     */
+    saveBackup: (jsonData) => ipcRenderer.invoke('save-backup', jsonData)
 });

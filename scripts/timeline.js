@@ -93,6 +93,10 @@ export function Timeline(options) {
     this.gridGraphics = new PIXI.Graphics(); // Initialize gridGraphics
     this.container.addChild(this.gridGraphics); // Add gridGraphics to container
 
+    // Create separate graphics layer for zone lines (always visible)
+    this.zoneGraphics = new PIXI.Graphics();
+    this.container.addChild(this.zoneGraphics);
+
     this.markerGraphics = new PIXI.Graphics();
     this.container.addChild(this.markerGraphics);
 
@@ -118,6 +122,20 @@ export function Timeline(options) {
     // Bind scrollbar methods
     this.boundScrollbarMove = this.onScrollbarPointerMove.bind(this);
     this.boundScrollbarUp = this.onScrollbarPointerUp.bind(this);
+
+    // Performance optimization: Dirty flags to track what needs redrawing
+    this.dirtyFlags = {
+        grid: true,
+        notes: true,
+        markers: true,
+        scrollbar: true,
+        timeIndicator: true
+    };
+
+    // Performance optimization: Throttle redraws
+    this.lastRedrawTime = 0;
+    this.redrawThrottleMs = 16; // ~60fps max
+    this.pendingRedraw = false;
 
     this.createGrid();
     this.createNotes();
@@ -146,7 +164,11 @@ export function Timeline(options) {
 } // Closing brace for export function Timeline(options)
 
 Timeline.prototype.createGrid = function () {
+    // Performance: Skip if not dirty
+    if (!this.dirtyFlags.grid) return;
+
     this.gridGraphics.clear();
+    this.zoneGraphics.clear(); // Clear zone graphics separately
 
     const screenWidth = this.app.screen.width;
     const screenHeight = this.app.screen.height;
@@ -156,49 +178,146 @@ Timeline.prototype.createGrid = function () {
 
     // Get theme-aware grid colors
     const isLightTheme = document.body.classList.contains('theme-light');
-    const beatLineColor = isLightTheme ? 0x000000 : 0xFFFFFF;  // Black in light, white in dark
-    const halfBeatLineColor = isLightTheme ? 0x555555 : 0xAAAAAA;  // Dark gray in light, light gray in dark
-    const subdivisionLineColor = isLightTheme ? 0x888888 : 0x666666;  // Medium gray in light, darker gray in dark
+    const beatLineColor = isLightTheme ? 0x000000 : 0xFFFFFF;
+    const halfBeatLineColor = isLightTheme ? 0x555555 : 0xAAAAAA;
+    const subdivisionLineColor = isLightTheme ? 0x888888 : 0x666666;
+    const zoneLineColor = isLightTheme ? 0xCCCCCC : 0x333333;
 
-    // --- Draw Beat and Subdivision Lines ---
-    const bpm = this._chartData.getBPMAtTime(0); // Assuming constant BPM for now
-    if (!bpm) return;
+    // --- Draw horizontal zone lines on separate layer (ALWAYS VISIBLE) ---
+    this.zoneGraphics.lineStyle(1, zoneLineColor, 0.6);
+    this.zoneGraphics.beginFill(0, 0); // Transparent fill
+    for (let i = 0; i <= this.waveformRenderer.numZones; i++) {
+        const y = i * 30;
+        this.zoneGraphics.moveTo(0, y);
+        this.zoneGraphics.lineTo(screenWidth, y);
+    }
+    this.zoneGraphics.endFill();
 
-    const msPerBeat = 60000 / bpm;
-    const subdivisionIntervalMs = msPerBeat / this.snapDivision;
-    const subdivisionIntervalPx = subdivisionIntervalMs * this.zoom;
-
-    if (subdivisionIntervalPx < 3) return; // Don't draw if grid is too dense
-
+    // --- Draw Beat and Subdivision Lines on main grid layer ---
+    // Handle multiple BPM changes by drawing each section separately
     const startTimeMs = this.offset / this.zoom;
-    const firstVisibleSubdivision = Math.floor(startTimeMs / subdivisionIntervalMs);
-    let currentTime = firstVisibleSubdivision * subdivisionIntervalMs;
+    const endTimeMs = (this.offset + screenWidth) / this.zoom;
 
-    for (let i = 0; i < (screenWidth / subdivisionIntervalPx) + 2; i++) {
-        const x = (currentTime * this.zoom) - this.offset;
-        const isBeat = Math.abs(currentTime % msPerBeat) < 0.01;
-        const isHalfBeat = Math.abs(currentTime % (msPerBeat / 2)) < 0.01;
+    // Get all BPM changes that affect the visible area
+    // Fallback to default BPM if bpmChanges is missing or empty
+    let bpmChanges = this._chartData.bpmChanges;
+    if (!bpmChanges || bpmChanges.length === 0) {
+        const defaultBpm = this._chartData.raw?.meta?.bpm?.init || this._chartData.raw?.meta?.bpm || 120;
+        bpmChanges = [{ time: 0, bpm: defaultBpm }];
+    }
 
-        if (x >= 0 && x <= screenWidth) {
-            if (isBeat) {
-                this.gridGraphics.lineStyle(2, beatLineColor, 0.5); // Main beat lines - thicker and more visible
-            } else if (isHalfBeat && this.snapDivision > 2) {
-                this.gridGraphics.lineStyle(1, halfBeatLineColor, 0.4); // Half-beat lines
-            } else {
-                this.gridGraphics.lineStyle(1, subdivisionLineColor, 0.3); // Subdivision lines
-            }
-            this.gridGraphics.moveTo(x, 0).lineTo(x, screenHeight);
+    // Validate and sanitize BPM changes
+    bpmChanges = bpmChanges.filter(change => {
+        return change &&
+            typeof change.time === 'number' &&
+            typeof change.bpm === 'number' &&
+            change.bpm > 0 &&
+            isFinite(change.bpm);
+    });
+
+    // If all BPM changes were invalid, use default
+    if (bpmChanges.length === 0) {
+        bpmChanges = [{ time: 0, bpm: 120 }];
+    }
+
+    // Ensure BPM changes are sorted by time
+    bpmChanges.sort((a, b) => a.time - b.time);
+
+    // Batch draw operations by line type for better performance
+    const beatLines = [];
+    const halfBeatLines = [];
+    const subdivisionLines = [];
+
+    // Process each BPM section
+    for (let changeIndex = 0; changeIndex < bpmChanges.length; changeIndex++) {
+        const bpmChange = bpmChanges[changeIndex];
+        const nextBpmChange = bpmChanges[changeIndex + 1];
+
+        const sectionStartTime = bpmChange.time;
+        const sectionEndTime = nextBpmChange ? nextBpmChange.time : endTimeMs + 10000; // Extend beyond visible area
+
+        // Skip sections that are completely outside the visible area
+        if (sectionEndTime < startTimeMs || sectionStartTime > endTimeMs) {
+            continue;
         }
 
-        currentTime += subdivisionIntervalMs;
+        const bpm = bpmChange.bpm;
+        const msPerBeat = 60000 / bpm;
+        const subdivisionIntervalMs = msPerBeat / this.snapDivision;
+        const subdivisionIntervalPx = subdivisionIntervalMs * this.zoom;
+
+        // Only draw vertical lines if grid is not too dense
+        if (subdivisionIntervalPx >= 3) {
+            // Calculate the first beat in this section
+            // We need to find the first beat that occurs at or after sectionStartTime
+            const beatsFromSectionStart = Math.ceil((Math.max(startTimeMs, sectionStartTime) - sectionStartTime) / subdivisionIntervalMs);
+            let currentTime = sectionStartTime + (beatsFromSectionStart * subdivisionIntervalMs);
+
+            // Draw beats until we reach the end of this section or the visible area
+            const drawEndTime = Math.min(sectionEndTime, endTimeMs);
+
+            let iterationCount = 0;
+            const maxIterations = 10000; // Safety limit
+            let beatIndex = beatsFromSectionStart; // Track which subdivision we're on
+
+            while (currentTime <= drawEndTime && iterationCount < maxIterations) {
+                const x = (currentTime * this.zoom) - this.offset;
+
+                // Use beat index instead of modulo to avoid floating-point errors
+                // beatIndex tells us which subdivision we're on
+                const isFullBeat = (beatIndex % this.snapDivision) === 0;
+                const isHalfBeat = this.snapDivision > 2 && (beatIndex % (this.snapDivision / 2)) === 0;
+
+                if (x >= 0 && x <= screenWidth) {
+                    if (isFullBeat) {
+                        beatLines.push(x);
+                    } else if (isHalfBeat && !isFullBeat) {
+                        halfBeatLines.push(x);
+                    } else {
+                        subdivisionLines.push(x);
+                    }
+                }
+
+                currentTime += subdivisionIntervalMs;
+                beatIndex++;
+                iterationCount++;
+            }
+
+            if (iterationCount >= maxIterations) {
+                console.warn('[Timeline] Hit max iterations drawing beat lines - possible infinite loop prevented');
+            }
+        }
     }
 
-    // Draw horizontal lines (zones)
-    for (let i = 0; i < this.waveformRenderer.numZones; i++) { // Use numZones from waveformRenderer
-        const y = i * 30; // 30 pixels per zone
-        this.gridGraphics.moveTo(0, y);
-        this.gridGraphics.lineTo(screenWidth, y);
+    // Draw all beat lines at once
+    if (beatLines.length > 0) {
+        this.gridGraphics.lineStyle(2, beatLineColor, 0.5);
+        beatLines.forEach(x => {
+            this.gridGraphics.moveTo(x, 0);
+            this.gridGraphics.lineTo(x, screenHeight);
+        });
     }
+
+    // Draw all half-beat lines at once
+    if (halfBeatLines.length > 0) {
+        this.gridGraphics.lineStyle(1, halfBeatLineColor, 0.4);
+        halfBeatLines.forEach(x => {
+            this.gridGraphics.moveTo(x, 0);
+            this.gridGraphics.lineTo(x, screenHeight);
+        });
+    }
+
+    // Draw all subdivision lines at once
+    if (subdivisionLines.length > 0) {
+        this.gridGraphics.lineStyle(1, subdivisionLineColor, 0.3);
+        subdivisionLines.forEach(x => {
+            this.gridGraphics.moveTo(x, 0);
+            this.gridGraphics.lineTo(x, screenHeight);
+        });
+    }
+
+    // Mark grid as clean
+    this.dirtyFlags.grid = false;
 };
 
 Timeline.prototype.createNotes = function () {
@@ -208,6 +327,9 @@ Timeline.prototype.createNotes = function () {
 };
 
 Timeline.prototype.drawMarkers = function () {
+    // Performance: Skip if not dirty
+    if (!this.dirtyFlags.markers) return;
+
     this.markerGraphics.clear();
     if (!this.sessionMarkers) return;
 
@@ -232,6 +354,9 @@ Timeline.prototype.drawMarkers = function () {
             this.markerGraphics.endFill();
         }
     });
+
+    // Mark markers as clean
+    this.dirtyFlags.markers = false;
 };
 
 Timeline.prototype._getMarkerAt = function (x) {
@@ -248,13 +373,18 @@ Timeline.prototype._getNoteAtPosition = function (x, y) {
     const clickWidth = 25; // Tolerance for clicking
     const clickHeight = 30; // Height of one zone
 
-    const notes = this._chartData.notes || [];
+    // Use the correctly nested raw data array for notes
+    const notes = (this._chartData && this._chartData.raw && this._chartData.raw.notes) ? this._chartData.raw.notes : (this._chartData.notes || []);
     return notes.find(note => {
         const noteX = (note.time * this.zoom) - this.offset;
         const noteY = note.zone * 30;
+        
+        // Calculate dynamic width for hold notes
+        const tailWidth = (note.type === 'hold' && note.duration) ? note.duration * this.zoom : 0;
+        const rightBound = noteX + clickWidth / 2 + tailWidth;
 
         return x >= noteX - clickWidth / 2 &&
-            x <= noteX + clickWidth / 2 &&
+            x <= rightBound &&
             y >= noteY &&
             y <= noteY + clickHeight;
     });
@@ -341,7 +471,8 @@ Timeline.prototype.onBoxSelectEnd = function (event) {
 
     // Clear box graphics
     this.boxSelectGraphics.clear();
-    this.drawNotes();
+    this.dirtyFlags.notes = true;
+    this.throttledRedraw();
 };
 
 Timeline.prototype.drawBoxSelect = function () {
@@ -374,58 +505,72 @@ Timeline.prototype.setTemporaryNotes = function (notes) {
 };
 
 Timeline.prototype.drawNotes = function () {
-    // Clear existing note graphics from the container
+    if (!this.dirtyFlags.notes) return;
+
     for (const graphic of this.noteGraphics.values()) {
         this.container.removeChild(graphic);
-        graphic.destroy(); // Clean up PIXI resources
+        graphic.destroy();
     }
     this.noteGraphics.clear();
 
-    // Note type colors (convert hex to PIXI color)
     const getNoteColor = (note) => {
         const type = note.type || 'regular';
-        const colorMap = {
-            'regular': 0xFFFFFF,  // White
-            'ex': 0xFFD700,       // Gold
-            'ex2': 0xFFD700,      // Gold (same as EX)
-            'multi': 0x00BFFF     // Blue
-        };
-        return colorMap[type] || 0xFFFFFF;
+        return { regular: 0xFFFFFF, ex: 0xFFD700, ex2: 0x00E5FF, multi: 0x00BFFF, hold: 0x44FFCC, flick: 0xFF8C00 }[type] || 0xFFFFFF;
     };
 
-    const notesToDraw = this.temporaryNotes.length > 0 ? this._chartData.raw.notes.concat(this.temporaryNotes) : this._chartData.raw.notes;
+    const NOTE_W = 20, NOTE_H = 20, ZONE_H = 30;
+    const notesToDraw = this.temporaryNotes.length > 0
+        ? this._chartData.raw.notes.concat(this.temporaryNotes)
+        : this._chartData.raw.notes;
 
     notesToDraw.forEach(note => {
         const x = (note.time * this.zoom) - this.offset;
-        const y = note.zone * 30; // 30 pixels per zone
-
+        const y = note.zone * ZONE_H;
         const noteGraphic = new PIXI.Graphics();
+        const isSelected  = (this.selectionManager && this.selectionManager.isSelected(note)) || this.selectedNote === note;
+        const color = getNoteColor(note);
 
-        // Check if note is selected (either in selectionManager or as selectedNote)
-        const isSelected = (this.selectionManager && this.selectionManager.isSelected(note)) || this.selectedNote === note;
-
-        if (isSelected) {
-            // Draw selection highlight
-            noteGraphic.lineStyle(3, 0xFFFF00, 1); // Yellow border for selected notes
+        // Hold note: draw duration bar behind head
+        if (note.type === 'hold' && note.duration > 0) {
+            const barW = Math.max(0, note.duration * this.zoom);
+            noteGraphic.beginFill(color, 0.30);
+            noteGraphic.drawRect(NOTE_W / 2, (NOTE_H - 8) / 2, barW, 8);
+            noteGraphic.endFill();
+            noteGraphic.beginFill(color, 0.70);
+            noteGraphic.drawRect(NOTE_W / 2 + barW - 4, (NOTE_H - 14) / 2, 4, 14);
+            noteGraphic.endFill();
         }
 
-        noteGraphic.beginFill(getNoteColor(note));
-        noteGraphic.drawRect(0, 0, 20, 20); // Note size
+        // Note head
+        if (isSelected) noteGraphic.lineStyle(3, 0xFFFF00, 1);
+        noteGraphic.beginFill(color);
+        noteGraphic.drawRect(0, 0, NOTE_W, NOTE_H);
         noteGraphic.endFill();
+
+        // Flick note: right-pointing arrow overlay
+        if (note.type === 'flick') {
+            noteGraphic.lineStyle(0);
+            noteGraphic.beginFill(0xFFFFFF, 0.9);
+            noteGraphic.moveTo(NOTE_W / 2 - 4, NOTE_H / 2 - 5);
+            noteGraphic.lineTo(NOTE_W / 2 + 6, NOTE_H / 2);
+            noteGraphic.lineTo(NOTE_W / 2 - 4, NOTE_H / 2 + 5);
+            noteGraphic.closePath();
+            noteGraphic.endFill();
+        }
 
         noteGraphic.x = x;
         noteGraphic.y = y;
-
-        // CRITICAL: Set explicit hit area for PIXI v7 event system
         noteGraphic.eventMode = 'static';
-        noteGraphic.cursor = 'pointer';
-        noteGraphic.hitArea = new PIXI.Rectangle(0, 0, 20, 20);
-
+        noteGraphic.cursor    = 'pointer';
+        const hitAreaW = (note.type === 'hold' && note.duration > 0) ? NOTE_W + note.duration * this.zoom : NOTE_W;
+        noteGraphic.hitArea   = new PIXI.Rectangle(0, 0, hitAreaW, NOTE_H);
         noteGraphic.on('pointerdown', (event) => this.onNotePointerDown(event, note, noteGraphic));
 
         this.container.addChild(noteGraphic);
         this.noteGraphics.set(note, noteGraphic);
     });
+
+    this.dirtyFlags.notes = false;
 };
 
 Timeline.prototype.onTimelinePointerDown = function (event) {
@@ -452,11 +597,10 @@ Timeline.prototype.onTimelinePointerMove = function (event) {
         this.lastPointerX = currentPointerX;
 
         this.wasDragging = true;
-        this.createGrid();
-        this.drawNotes();
-        this.drawMarkers();
-        this.updateScrollbar();
-        this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+
+        // Mark everything as dirty
+        this.markAllDirty();
+        this.throttledRedraw();
     }
 };
 
@@ -474,13 +618,42 @@ Timeline.prototype.onNotePointerDown = function (event, note, noteGraphic) {
         if (this.selectionManager) {
             this.selectionManager.removeFromSelection(note);
         }
-        this.drawNotes();
+        this.dirtyFlags.notes = true;
+        this.throttledRedraw();
         return;
     }
 
     event.stopPropagation(); // Prevent timeline click event
-    const isCtrlPressed = event.data.originalEvent.ctrlKey || event.data.originalEvent.metaKey;
-    const isShiftPressed = event.data.originalEvent.shiftKey;
+    const evt = event.nativeEvent || event.data.originalEvent;
+    const isCtrlPressed = evt.ctrlKey || evt.metaKey;
+    const isShiftPressed = evt.shiftKey;
+
+    // --- Hold note tail resize check ---
+    const pointerX = evt.offsetX;
+    const noteScreenX = (note.time * this.zoom) - this.offset;
+    
+    // If we click the right edge or tail of a hold note, resize it instead of dragging it
+    if (note.type === 'hold' && pointerX > noteScreenX + 15) {
+        this.isResizingHold = true;
+        this.resizingNote = note;
+        this.wasDragging = false; 
+
+        if (!this.boundHoldResizeMove) this.boundHoldResizeMove = this.onHoldResizeMove.bind(this);
+        if (!this.boundHoldResizeUp) this.boundHoldResizeUp = this.onHoldResizeUp.bind(this);
+
+        this.app.view.addEventListener('pointermove', this.boundHoldResizeMove);
+        this.app.view.addEventListener('pointerup', this.boundHoldResizeUp);
+        
+        // Ensure note is selected when resizing
+        if (this.selectionManager && !this.selectionManager.isSelected(note)) {
+            this.selectionManager.selectNote(note);
+            this.selectedNote = note;
+            if (this.onNoteSelected) this.onNoteSelected(note);
+            this.dirtyFlags.notes = true;
+            this.throttledRedraw();
+        }
+        return; // Skip normal selection/drag
+    }
 
     if (this.selectionManager) {
         const isAlreadySelected = this.selectionManager.isSelected(note);
@@ -544,7 +717,8 @@ Timeline.prototype.onNotePointerDown = function (event, note, noteGraphic) {
         this.app.view.addEventListener('pointerup', this.onNotePointerUp.bind(this));
     } else {
         // Only redraw if we're multi-selecting (not dragging)
-        this.drawNotes();
+        this.dirtyFlags.notes = true;
+        this.throttledRedraw();
     }
 };
 
@@ -603,7 +777,10 @@ Timeline.prototype.onNotePointerMove = function (event) {
                 }
             });
 
-            this.drawNotes();
+            // Mark notes as dirty and throttle redraw during drag
+            this.dirtyFlags.notes = true;
+            this.throttledRedraw();
+
             if (this.onNoteSelected) {
                 this.onNoteSelected(this.selectedNote);
             }
@@ -616,8 +793,40 @@ Timeline.prototype.onNotePointerUp = function () {
     this.app.view.removeEventListener('pointermove', this.onNotePointerMove.bind(this));
     this.app.view.removeEventListener('pointerup', this.onNotePointerUp.bind(this));
     this._chartData.raw.notes.sort((a, b) => a.time - b.time); // Re-sort after moving
-    this.drawNotes();
+    this.dirtyFlags.notes = true;
+    this.throttledRedraw();
     // Do not reset lastClickTime here, it's handled in onNotePointerDown for double-click detection
+};
+
+Timeline.prototype.onHoldResizeMove = function(event) {
+    if (!this.isResizingHold || !this.resizingNote) return;
+    
+    const pxToMs = (px) => (px + this.offset) / this.zoom;
+    let newEndTime = pxToMs(event.offsetX);
+    
+    if (this.snapEnabled) {
+        newEndTime = this.snapToBeat(newEndTime);
+    }
+    
+    let newDuration = newEndTime - this.resizingNote.time;
+    newDuration = Math.max(50, newDuration); // 50ms min duration
+    
+    if (newDuration !== this.resizingNote.duration) {
+        this.resizingNote.duration = newDuration;
+        this.dirtyFlags.notes = true;
+        this.throttledRedraw();
+        
+        if (this.onNoteSelected) {
+            this.onNoteSelected(this.resizingNote);
+        }
+    }
+};
+
+Timeline.prototype.onHoldResizeUp = function() {
+    this.isResizingHold = false;
+    this.resizingNote = null;
+    this.app.view.removeEventListener('pointermove', this.boundHoldResizeMove);
+    this.app.view.removeEventListener('pointerup', this.boundHoldResizeUp);
 };
 
 Timeline.prototype.onClick = function (event) {
@@ -674,8 +883,12 @@ Timeline.prototype.onClick = function (event) {
 
     if (zone >= 0 && zone < 6) { // Assuming 6 zones
         const newNote = { time: time, zone: zone, type: this.selectedNoteType };
+        if (this.selectedNoteType === 'hold') {
+            newNote.duration = 250; // Give hold notes a default tail to allow resizing
+        }
         this.commandManager.execute(new AddNoteCommand(this._chartData, newNote));
-        this.drawNotes();
+        this.dirtyFlags.notes = true;
+        this.throttledRedraw();
         this.selectedNote = newNote; // Select the newly created note
         if (this.selectionManager) {
             this.selectionManager.selectNote(newNote);
@@ -812,12 +1025,9 @@ Timeline.prototype.onWheel = function (event) {
             this.offset = chartTimeAtMouse * this.zoom - mouseX;
             this.offset = Math.max(0, this.offset);
 
-            // Redraw timeline
-            this.createGrid();
-            this.drawNotes();
-            this.drawMarkers();
-            this.updateScrollbar();
-            this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+            // Mark everything as dirty and use throttled redraw
+            this.markAllDirty();
+            this.throttledRedraw();
 
             // Notify editor of zoom change
             if (this.onZoomChange) {
@@ -846,11 +1056,10 @@ Timeline.prototype.onWheel = function (event) {
         }
 
         this.offset = Math.max(0, this.offset);
-        this.createGrid();
-        this.drawNotes();
-        this.drawMarkers();
-        this.updateScrollbar();
-        this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+
+        // Mark everything as dirty
+        this.markAllDirty();
+        this.throttledRedraw();
     }
 };
 
@@ -859,7 +1068,19 @@ Timeline.prototype.smoothScroll = function () {
 
     // Apply velocity to offset
     this.offset += this.scrollVelocity;
-    this.offset = Math.max(0, this.offset);
+
+    // Calculate max offset based on audio duration
+    let chartDuration = 180000; // Default 3 minutes
+    if (this.audioPlayer && this.audioPlayer.duration && !isNaN(this.audioPlayer.duration)) {
+        chartDuration = this.audioPlayer.duration * 1000; // Convert to milliseconds
+    } else if (this._chartData.metadata?.duration) {
+        chartDuration = this._chartData.metadata.duration;
+    }
+    const totalContentWidth = chartDuration * this.zoom;
+    const maxOffset = Math.max(0, totalContentWidth - this.app.renderer.width);
+
+    // Clamp offset between 0 and maxOffset
+    this.offset = Math.max(0, Math.min(this.offset, maxOffset));
 
     // Apply friction/easing
     this.scrollVelocity *= 0.85; // Friction coefficient (0.85 = smooth deceleration)
@@ -870,12 +1091,9 @@ Timeline.prototype.smoothScroll = function () {
         this.isScrolling = false;
     }
 
-    // Redraw timeline
-    this.createGrid();
-    this.drawNotes();
-    this.drawMarkers();
-    this.updateScrollbar();
-    this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+    // Mark everything as dirty and use throttled redraw
+    this.markAllDirty();
+    this.throttledRedraw();
 
     // Continue animation
     if (this.isScrolling) {
@@ -891,26 +1109,95 @@ Timeline.prototype.onKeyDown = function (event) {
         if (this.onNoteSelected) {
             this.onNoteSelected(null);
         }
-        this.drawNotes();
+        this.dirtyFlags.notes = true;
+        this.throttledRedraw();
     }
 };
 
 Timeline.prototype.snapToBeat = function (timeInMs) {
+    // Get BPM at this time with fallback
     const bpm = this._chartData.getBPMAtTime(timeInMs);
-    if (!bpm) return timeInMs;
+    if (!bpm || bpm <= 0 || !isFinite(bpm)) return timeInMs;
 
-    const msPerBeat = 60000 / bpm;
+    // Find the BPM change that applies to this time
+    let bpmChanges = this._chartData.bpmChanges;
+    if (!bpmChanges || bpmChanges.length === 0) {
+        const defaultBpm = this._chartData.raw?.meta?.bpm?.init || this._chartData.raw?.meta?.bpm || 120;
+        bpmChanges = [{ time: 0, bpm: defaultBpm }];
+    }
+
+    // Validate and find active BPM change
+    let activeBpmChange = bpmChanges[0];
+    for (let i = bpmChanges.length - 1; i >= 0; i--) {
+        if (bpmChanges[i] &&
+            typeof bpmChanges[i].time === 'number' &&
+            typeof bpmChanges[i].bpm === 'number' &&
+            bpmChanges[i].time <= timeInMs) {
+            activeBpmChange = bpmChanges[i];
+            break;
+        }
+    }
+
+    // Safety check
+    if (!activeBpmChange || !activeBpmChange.bpm || activeBpmChange.bpm <= 0) {
+        return timeInMs;
+    }
+
+    const msPerBeat = 60000 / activeBpmChange.bpm;
     const snapInterval = msPerBeat / this.snapDivision;
 
-    return Math.round(timeInMs / snapInterval) * snapInterval;
+    // Calculate time relative to the BPM change point
+    const timeFromBpmChange = timeInMs - activeBpmChange.time;
+    const snappedTimeFromBpmChange = Math.round(timeFromBpmChange / snapInterval) * snapInterval;
+
+    // Return absolute time
+    return activeBpmChange.time + snappedTimeFromBpmChange;
 };
 
 Timeline.prototype.update = function () {
     // Redraw on chart data change
+    this.markAllDirty();
+    this.performRedraw();
+};
+
+// Performance optimization: Mark all components as needing redraw
+Timeline.prototype.markAllDirty = function () {
+    this.dirtyFlags.grid = true;
+    this.dirtyFlags.notes = true;
+    this.dirtyFlags.markers = true;
+    this.dirtyFlags.scrollbar = true;
+    this.dirtyFlags.timeIndicator = true;
+};
+
+// Performance optimization: Throttled redraw to prevent excessive GPU calls
+Timeline.prototype.throttledRedraw = function () {
+    const now = performance.now();
+    const timeSinceLastRedraw = now - this.lastRedrawTime;
+
+    if (timeSinceLastRedraw >= this.redrawThrottleMs) {
+        // Enough time has passed, redraw immediately
+        this.performRedraw();
+        this.lastRedrawTime = now;
+        this.pendingRedraw = false;
+    } else if (!this.pendingRedraw) {
+        // Schedule a redraw for later
+        this.pendingRedraw = true;
+        const delay = this.redrawThrottleMs - timeSinceLastRedraw;
+        setTimeout(() => {
+            this.performRedraw();
+            this.lastRedrawTime = performance.now();
+            this.pendingRedraw = false;
+        }, delay);
+    }
+};
+
+// Performance optimization: Actual redraw function
+Timeline.prototype.performRedraw = function () {
     this.createGrid();
     this.drawNotes();
     this.drawMarkers();
     this.updateScrollbar();
+    this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
 };
 
 Timeline.prototype.setZoom = function (newZoom) {
@@ -922,11 +1209,8 @@ Timeline.prototype.setZoom = function (newZoom) {
     const chartTimeAtCenter = (this.offset + centerX) / oldZoom;
     this.offset = chartTimeAtCenter * this.zoom - centerX;
 
-    this.createGrid();
-    this.drawNotes();
-    this.drawMarkers();
-    this.updateScrollbar();
-    this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+    this.markAllDirty();
+    this.performRedraw();
 };
 
 Timeline.prototype.smoothZoom = function (targetZoom) {
@@ -958,12 +1242,9 @@ Timeline.prototype.smoothZoom = function (targetZoom) {
         // Adjust offset to maintain center point
         this.offset = chartTimeAtCenter * this.zoom - centerX;
 
-        // Redraw timeline
-        this.createGrid();
-        this.drawNotes();
-        this.drawMarkers();
-        this.updateScrollbar();
-        this.drawCurrentTimeIndicator(this.audioPlayer ? this.audioPlayer.currentTime * 1000 : 0);
+        // Mark everything as dirty and use throttled redraw
+        this.markAllDirty();
+        this.throttledRedraw();
 
         // Continue animation if not complete
         if (progress < 1) {
@@ -978,7 +1259,8 @@ Timeline.prototype.smoothZoom = function (targetZoom) {
 
 Timeline.prototype.setSessionMarkers = function (markers) {
     this.sessionMarkers = markers;
-    this.drawMarkers();
+    this.dirtyFlags.markers = true;
+    this.throttledRedraw();
 }
 
 Timeline.prototype.highlightNote = function (noteGraphic) {
@@ -1005,26 +1287,23 @@ Timeline.prototype.drawCurrentTimeIndicator = function (currentTime) {
         // If playhead is past the right edge, scroll forward by one screen width
         if (x > rightEdge) {
             this.offset = currentTime * this.zoom - (viewWidth * 0.1); // Position playhead at 10% from left
-            this.createGrid();
-            this.drawNotes();
-            this.drawMarkers();
-            this.updateScrollbar();
+            this.markAllDirty();
+            this.performRedraw(); // Use immediate redraw for auto-scroll (not throttled)
         }
         // If playhead is before the left edge (e.g., after seeking backward), scroll to show it
         else if (x < 0) {
             this.offset = Math.max(0, currentTime * this.zoom - (viewWidth * 0.1));
-            this.createGrid();
-            this.drawNotes();
-            this.drawMarkers();
-            this.updateScrollbar();
+            this.markAllDirty();
+            this.performRedraw(); // Use immediate redraw for auto-scroll (not throttled)
         }
     }
 };
 
 Timeline.prototype.setWaveformColor = function (color) {
     this.waveformRenderer.setColor(color);
-    this.createGrid(); // Redraw grid which includes the waveform
-    this.updateScrollbar();
+    this.dirtyFlags.grid = true;
+    this.dirtyFlags.scrollbar = true;
+    this.performRedraw();
 };
 
 Timeline.prototype.updateBackgroundColor = function () {
@@ -1056,7 +1335,13 @@ Timeline.prototype.updateScrollbar = function () {
     const scrollbarWidth = this.app.renderer.width - (scrollbarPadding * 2);
 
     // Calculate total content width (total chart duration in pixels)
-    const chartDuration = this._chartData.metadata?.duration || 180000; // Default 3 minutes
+    // Use actual audio duration if available, otherwise fall back to chart metadata or default
+    let chartDuration = 180000; // Default 3 minutes
+    if (this.audioPlayer && this.audioPlayer.duration && !isNaN(this.audioPlayer.duration)) {
+        chartDuration = this.audioPlayer.duration * 1000; // Convert to milliseconds
+    } else if (this._chartData.metadata?.duration) {
+        chartDuration = this._chartData.metadata.duration;
+    }
     const totalContentWidth = chartDuration * this.zoom;
 
     // Calculate visible ratio and thumb width
@@ -1123,13 +1408,9 @@ Timeline.prototype.onScrollbarPointerMove = function (event) {
     // Mark that we're manually scrolling to prevent auto-scroll interference
     this.isManuallyScrolling = true;
 
-    this.createGrid();
-    this.drawNotes();
-    this.drawMarkers();
-    this.updateScrollbar();
-
-    // Update playhead position to reflect current audio time
-    this.drawCurrentTimeIndicator(this.audioPlayer.currentTime * 1000);
+    // Mark everything as dirty and use throttled redraw
+    this.markAllDirty();
+    this.throttledRedraw();
 };
 
 Timeline.prototype.onScrollbarPointerUp = function () {

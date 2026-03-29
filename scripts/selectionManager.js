@@ -112,9 +112,7 @@ export class SelectionManager {
      */
     copy() {
         this.clipboard = this.getSelection().map(note => ({
-            time: note.time,
-            zone: note.zone,
-            type: note.type
+            ...note
         }));
         return this.clipboard.length;
     }
@@ -141,9 +139,8 @@ export class SelectionManager {
 
         // Create new notes with offset
         const pastedNotes = this.clipboard.map(note => ({
-            time: note.time + offset,
-            zone: note.zone,
-            type: note.type
+            ...note,
+            time: note.time + offset
         }));
         return pastedNotes;
     }
@@ -153,9 +150,8 @@ export class SelectionManager {
      */
     duplicate(timeOffset = 1000) {
         const duplicated = this.getSelection().map(note => ({
-            time: note.time + timeOffset,
-            zone: note.zone,
-            type: note.type
+            ...note,
+            time: note.time + timeOffset
         }));
         return duplicated;
     }

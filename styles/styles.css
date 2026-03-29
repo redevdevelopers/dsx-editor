@@ -1841,3 +1841,553 @@ img {
     background: rgba(100, 150, 255, 0.2);
     color: #e0e6ff;
 }
+
+
+/* ===== REDESIGNED SIDEBAR STYLES ===== */
+
+/* Panel Headers */
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.3px;
+    color: var(--text-primary);
+    background-color: transparent;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.panel-header-static {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.3px;
+    color: var(--text-primary);
+    background-color: transparent;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-title {
+    flex: 1;
+}
+
+.collapse-icon {
+    font-size: 11px;
+    transition: transform 0.25s ease;
+    color: var(--text-secondary);
+    order: -1;
+    width: 14px;
+    text-align: center;
+}
+
+.panel.collapsible.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+/* Panel Content */
+.panel-content {
+    padding: 16px;
+    animation: slideDown 0.25s ease;
+}
+
+/* Input Groups - Better Spacing */
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group:last-child {
+    margin-bottom: 0;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.input-group input[type="text"],
+.input-group input[type="number"],
+.input-group select {
+    width: 100%;
+}
+
+.input-group input[type="range"] {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+/* Input Rows - Improved Layout */
+.input-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px; /* Reduced from 12px to give more space for content */
+    margin-bottom: 16px;
+}
+
+.input-row:last-child {
+    margin-bottom: 0;
+}
+
+.input-col {
+    min-width: 0; /* Allow flex items to shrink below content size */
+    overflow: hidden; /* Prevent overflow */
+}
+
+.input-col label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10.5px; /* Slightly smaller to prevent clipping */
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px; /* Reduced from 0.5px for tighter spacing */
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.input-col input,
+.input-col select {
+    width: 100%;
+    min-width: 0;
+}
+
+/* BPM Changes Section */
+.bpm-changes-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.section-label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.bpm-changes-list {
+    max-height: 200px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.bpm-changes-list:empty::before {
+    content: 'No BPM changes';
+    display: block;
+    text-align: center;
+    padding: 12px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* Small Buttons */
+.button-small {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.button-small svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Full Width Buttons */
+.full-width {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.full-width:last-child {
+    margin-bottom: 0;
+}
+
+/* Button Rows */
+.button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.button-row button {
+    margin: 0;
+}
+
+/* Panel Description */
+.panel-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 4px;
+}
+
+/* Training Status */
+.training-status {
+    margin-top: 16px;
+    padding: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Note Palette Panel */
+.note-palette-panel {
+    background-color: rgba(14, 99, 156, 0.05);
+    border-top: 2px solid var(--accent-primary);
+}
+
+.note-palette-panel .panel-header-static {
+    background-color: transparent;
+}
+
+/* Note Palette Grid - Enhanced */
+.note-palette-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.note-btn {
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.note-btn .note-key {
+    display: inline-block;
+    background-color: rgba(255, 255, 255, 0.15);
+    padding: 3px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 20px;
+    text-align: center;
+}
+
+.note-btn.primary .note-key {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Value Display */
+.value-display {
+    float: right;
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
+/* Color Grid - Enhanced */
+.color-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 12px;
+    align-items: center;
+}
+
+.color-grid label {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.color-grid input[type="color"] {
+    height: 36px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* Chart Statistics - Enhanced */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-row span {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stat-row strong {
+    color: var(--accent-primary);
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.stat-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 12px 0;
+}
+
+/* Checkbox Group - Enhanced */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.checkbox-group:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+}
+
+.checkbox-group label {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* Improved Input Styling */
+input[type="text"],
+input[type="number"],
+select {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+input[type="text"]:hover,
+input[type="number"]:hover,
+select:hover {
+    border-color: var(--accent-hover);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(14, 99, 156, 0.15);
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Range Input Styling */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+input[type="range"]:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--accent-hover);
+    transform: scale(1.1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+    background: var(--accent-hover);
+    transform: scale(1.1);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* File Input Styling */
+.file-input-wrapper {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+input[type="file"] {
+    padding: 8px;
+    font-size: 11px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+input[type="file"]:hover {
+    border-color: var(--accent-hover);
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* File input filename display */
+input[type="file"]::file-selector-button {
+    padding: 6px 12px;
+    margin-right: 8px;
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+/* Firefox file input button */
+input[type="file"]::-webkit-file-upload-button {
+    padding: 6px 12px;
+    margin-right: 8px;
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+/* Scrollbar for Sidebar */
+#sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+#sidebar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#sidebar::-webkit-scrollbar-thumb {
+    background-color: var(--bg-elevated);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--accent-primary);
+}
+
+/* Smooth Transitions */
+.panel {
+    transition: background-color 0.2s ease;
+}
+
+.panel:hover {
+    background-color: rgba(255, 255, 255, 0.01);
+}
+
+/* ===== END REDESIGNED SIDEBAR STYLES ===== */
