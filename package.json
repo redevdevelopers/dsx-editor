@@ -25,6 +25,7 @@
   "build": {
     "appId": "com.kynix.dsx.editor",
     "productName": "DreamSync Studio 6",
+    "artifactName": "DreamSync-Studio-6-Setup-${version}.${ext}",
     "copyright": "Copyright © 2026 Redevon Community. All rights reserved.",
     "publish": [
       {

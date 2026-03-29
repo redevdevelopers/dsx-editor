@@ -55,6 +55,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 
     /**
+     * Check for updates quietly in the background
+     * @returns {Promise<void>}
+     */
+    checkForUpdatesQuietly: () => ipcRenderer.invoke('check-for-updates-quietly'),
+
+    /**
+     * Get the application version
+     * @returns {Promise<string>}
+     */
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+
+    /**
+     * Get the release notes
+     * @returns {Promise<string>}
+     */
+    getReleaseNotes: () => ipcRenderer.invoke('get-release-notes'),
+
+    /**
      * Save backup file to disk
      * @param {string} jsonData - The JSON data to backup
      * @returns {Promise<{success: boolean, backupPath?: string, error?: string}>}

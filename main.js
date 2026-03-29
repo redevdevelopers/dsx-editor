@@ -549,6 +549,9 @@ app.whenReady().then(() => {
     ipcMain.handle('dialog:openBeatmapFiles', handleOpenBeatmapFiles);
     ipcMain.handle('dialog:openAudioFile', handleOpenAudioFile);
     ipcMain.handle('check-for-updates', handleCheckForUpdates);
+    ipcMain.handle('check-for-updates-quietly', handleCheckForUpdatesQuietly);
+    ipcMain.handle('get-app-version', handleGetAppVersion);
+    ipcMain.handle('get-release-notes', handleGetReleaseNotes);
     ipcMain.handle('save-backup', handleSaveBackup);
 
     const mainWindow = createWindow();
@@ -729,6 +732,35 @@ async function handleCheckForUpdates() {
             resolve();
         });
     });
+}
+
+async function handleCheckForUpdatesQuietly() {
+    if (!app.isPackaged || !updater) {
+        return;
+    }
+    updater.checkForUpdatesQuietly();
+}
+
+async function handleGetAppVersion() {
+    return app.getVersion();
+}
+
+async function handleGetReleaseNotes() {
+    try {
+        const notesPath = path.join(__dirname, 'RELEASE_NOTES.md');
+        const content = await fs.readFile(notesPath, 'utf-8');
+        // Extract just the latest version's notes
+        const versionRegex = /^#(#)? Version/gm;
+        let match1 = versionRegex.exec(content);
+        if (!match1) return content;
+        
+        let match2 = versionRegex.exec(content);
+        if (!match2) return content.substring(match1.index).trim();
+        
+        return content.substring(match1.index, match2.index).trim();
+    } catch (e) {
+        return "Enjoy the new features and bug fixes!";
+    }
 }
 
 async function handleSaveBackup(event, jsonData) {

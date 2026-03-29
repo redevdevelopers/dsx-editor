@@ -139,14 +139,68 @@ export class FirstTimeSetup {
         ];
     }
 
-    show() {
+    async show() {
         if (this.hasCompletedSetup()) {
+            if (window.electronAPI && window.electronAPI.checkForUpdatesQuietly) {
+                window.electronAPI.checkForUpdatesQuietly();
+            }
+            if (window.electronAPI && window.electronAPI.getAppVersion) {
+                try {
+                    const currentVersion = await window.electronAPI.getAppVersion();
+                    const lastSeenVersion = localStorage.getItem('last_seen_version');
+                    
+                    if (lastSeenVersion && currentVersion !== lastSeenVersion) {
+                        await this.showChangelogModal(currentVersion);
+                    }
+                    localStorage.setItem('last_seen_version', currentVersion);
+                } catch (e) {
+                    console.error("Failed to check app version for changelog", e);
+                }
+            }
             return;
         }
 
         this.createModal();
         this.renderStep();
         this.setupKeyboardNavigation();
+    }
+
+    async showChangelogModal(version) {
+        let notesText = "Updated to version " + version;
+        if (window.electronAPI && window.electronAPI.getReleaseNotes) {
+            notesText = await window.electronAPI.getReleaseNotes();
+        }
+
+        const modalHtml = `
+            <div id="changelog-modal" class="modal" style="display: flex;">
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <div>
+                            <h2>What's New!</h2>
+                            <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.7;">Running DreamSync Studio v${version}</p>
+                        </div>
+                        <button class="modal-close" id="changelog-modal-close">&times;</button>
+                    </div>
+                    <div class="modal-body" style="max-height: 480px; overflow-y: auto; text-align: left;">
+                        <pre style="font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; box-sizing: border-box; line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; background: rgba(0,0,0,0.15); padding: 16px; border-radius: 6px; border: 1px solid var(--border-color);">${notesText}</pre>
+                        <button id="changelog-ok-btn" class="button primary" style="width: 100%;">Awesome!</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = document.getElementById('changelog-modal');
+        const closeBtn = document.getElementById('changelog-modal-close');
+        const okBtn = document.getElementById('changelog-ok-btn');
+        
+        const closeModal = () => {
+            modal.style.opacity = '0';
+            setTimeout(() => modal.remove(), 250);
+        };
+        
+        closeBtn.addEventListener('click', closeModal);
+        okBtn.addEventListener('click', closeModal);
     }
 
     setupKeyboardNavigation() {
