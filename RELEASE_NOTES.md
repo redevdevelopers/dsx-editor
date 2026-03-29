@@ -1,6 +1,25 @@
 # DreamSyncX Chart Editor - Release Notes
 
-## Version 6 (March 2026)
+## Version 6.0.0 (March 2026)
+
+**The 3D Engine Overhaul + High-Impact VFX Update**
+
+### 🚀 Major Engine Rewrite
+- **3D Engine Migration**: Completely replaced the legacy 2D PixiJS gameplay engine with a high-performance 3D **Three.js**-based system.
+
+### 🎆 Visual & Gameplay Enhancements
+- **High-Impact VFX**: Introduced full 3D visual effects, including dynamic fireworks on successful note hits and intense camera shake parameters.
+- **Audio-Visual Feedback**: Revamped the audio-visual feedback systems to be fully dynamic, tying directly into the Three.js rendering pipeline for better immersion.
+- **Custom Note Properties**: Deeply integrated new custom note properties and tail types seamlessly into the 3D space.
+
+### 🧹 Massive Codebase Cleanup
+- **Dead Layouts Extirpated**: Removed the legacy PixiJS-based "Layout Transitions" (Honeycomb <-> Ring) and its associated sidebar UI panel, as the new 3D engine handles layout naturally.
+- **Obsolete UI Purge**: Cleaned out obsolete "Gameplay Zoom" sliders, legacy 2D "Note Color" configurations, and archaic dropdowns that no longer applied to the 3D pipeline.
+- **FPS Counter Fix**: Redid the status bar FPS logic to accurately display the core app's frame rate, fixing a persistent issue where it polled an undefined Pixi ticker and displayed 0.
+
+### 🐛 Critical Bug Fixes & Infrastructure
+- **Data Loss Resolved**: Fixed critical bugs causing data loss and corruption during chart imports.
+- **Auto-Updater System**: Re-implemented and restored `autoUpdater.js` using `electron-updater` to ensure seamless updates moving forward without relying on manual downloads.
 
 ## Version 5.1.0 (February 2026)
 
