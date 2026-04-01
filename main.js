@@ -466,7 +466,7 @@ function createWindow() {
                         } else {
                             dialog.showMessageBox({
                                 type: 'info',
-                                title: 'Updates',
+                                title: 'DreamSync Studio Updater',
                                 message: 'Auto-updater not available in development mode.',
                                 buttons: ['OK']
                             });
@@ -555,6 +555,43 @@ app.whenReady().then(() => {
     ipcMain.handle('save-backup', handleSaveBackup);
 
     const mainWindow = createWindow();
+
+    // --- Native close confirmation (replaces broken beforeunload approach) ---
+    // When the user clicks X, ask the renderer if there are unsaved changes.
+    let closeConfirmed = false;
+    mainWindow.on('close', (e) => {
+        if (closeConfirmed) return; // Already confirmed, let it close
+        e.preventDefault(); // Hold the close
+
+        // Ask the renderer page if there are unsaved changes
+        mainWindow.webContents.send('close-requested');
+    });
+
+    // Renderer replies with whether it's ok to close
+    ipcMain.on('close-response', async (event, canClose) => {
+        if (canClose) {
+            // No unsaved changes — just close
+            closeConfirmed = true;
+            mainWindow.close();
+        } else {
+            // Unsaved changes — show native dialog
+            const { response } = await dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'Unsaved Changes',
+                message: 'You have unsaved changes.',
+                detail: 'Do you want to close without saving?',
+                buttons: ['Close Without Saving', 'Cancel'],
+                defaultId: 1,   // Cancel is default
+                cancelId: 1
+            });
+            if (response === 0) {
+                // User chose to close without saving
+                closeConfirmed = true;
+                mainWindow.close();
+            }
+            // response === 1 → Cancel, do nothing
+        }
+    });
 
     // Initialize auto-updater (only in production)
     if (!app.isPackaged) {
@@ -753,10 +790,10 @@ async function handleGetReleaseNotes() {
         const versionRegex = /^#(#)? Version/gm;
         let match1 = versionRegex.exec(content);
         if (!match1) return content;
-        
+
         let match2 = versionRegex.exec(content);
         if (!match2) return content.substring(match1.index).trim();
-        
+
         return content.substring(match1.index, match2.index).trim();
     } catch (e) {
         return "Enjoy the new features and bug fixes!";

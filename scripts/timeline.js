@@ -1102,15 +1102,34 @@ Timeline.prototype.smoothScroll = function () {
 };
 
 Timeline.prototype.onKeyDown = function (event) {
-    if (event.key === 'Delete' && this.selectedNote) {
+    if (event.key === 'Delete') {
         event.preventDefault(); // Prevent browser default action
-        this.commandManager.execute(new DeleteNoteCommand(this._chartData, this.selectedNote));
-        this.selectedNote = null;
-        if (this.onNoteSelected) {
-            this.onNoteSelected(null);
+
+        // Check selectionManager first — supports bulk delete
+        if (this.selectionManager && this.selectionManager.getCount() > 0) {
+            // Delegate bulk delete to the editor (uses filter-based safe deletion)
+            if (this.onDeleteSelected) {
+                this.onDeleteSelected();
+            } else {
+                // Fallback: use CommandManager for each note individually (single-note safe path)
+                const selected = this.selectionManager.getSelection();
+                selected.forEach(note => {
+                    this.commandManager.execute(new DeleteNoteCommand(this._chartData, note));
+                });
+                this.selectionManager.clearSelection();
+                this.selectedNote = null;
+                if (this.onNoteSelected) this.onNoteSelected(null);
+                this.dirtyFlags.notes = true;
+                this.throttledRedraw();
+            }
+        } else if (this.selectedNote) {
+            // Legacy single-note path (no selectionManager or empty selection)
+            this.commandManager.execute(new DeleteNoteCommand(this._chartData, this.selectedNote));
+            this.selectedNote = null;
+            if (this.onNoteSelected) this.onNoteSelected(null);
+            this.dirtyFlags.notes = true;
+            this.throttledRedraw();
         }
-        this.dirtyFlags.notes = true;
-        this.throttledRedraw();
     }
 };
 

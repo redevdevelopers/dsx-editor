@@ -1,7 +1,7 @@
 {
   "name": "dsx-editor",
-  "version": "6.0.0",
-  "description": "A rhythm game chart editor for DreamSyncX.",
+  "version": "6.0.1",
+  "description": "DreamSync Studio",
   "main": "main.js",
   "scripts": {
     "test": "jest",

@@ -77,5 +77,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
      * @param {string} jsonData - The JSON data to backup
      * @returns {Promise<{success: boolean, backupPath?: string, error?: string}>}
      */
-    saveBackup: (jsonData) => ipcRenderer.invoke('save-backup', jsonData)
+    saveBackup: (jsonData) => ipcRenderer.invoke('save-backup', jsonData),
+
+    /**
+     * Listen for a close confirmation request from the main process
+     * @param {Function} callback - Called with no args when main process wants to close
+     */
+    onCloseRequested: (callback) => ipcRenderer.on('close-requested', callback),
+
+    /**
+     * Send the user's close decision back to the main process
+     * @param {boolean} canClose - Whether the window is allowed to close
+     */
+    respondToClose: (canClose) => ipcRenderer.send('close-response', canClose)
 });

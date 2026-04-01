@@ -155,7 +155,8 @@ export class ChartEditor {
                 selectedNoteType: this.selectedNoteType,
                 commandManager: this.commandManager,
                 audioBuffer: null,
-                selectionManager: this.selectionManager // Pass selection manager to timeline
+                selectionManager: this.selectionManager, // Pass selection manager to timeline
+                onDeleteSelected: this._deleteSelectedNotes.bind(this) // Bug 2 fix: bulk delete from keyboard
             });
 
             this._setupEventListeners();
@@ -1692,12 +1693,8 @@ export class ChartEditor {
     _deleteSelectedNotes() {
         const selected = this.selectionManager.getSelection();
         if (selected.length > 0) {
-            selected.forEach(note => {
-                const index = this._chart.notes.indexOf(note);
-                if (index > -1) {
-                    this._chart.notes.splice(index, 1);
-                }
-            });
+            const selectedSet = new Set(selected);
+            this._chart.notes = this._chart.notes.filter(note => !selectedSet.has(note));
             this.selectionManager.clearSelection();
             this.timeline.update();
             this._showToast(`Deleted ${selected.length} note${selected.length > 1 ? 's' : ''}`);
@@ -2126,9 +2123,17 @@ export class ChartEditor {
             fpsElement.parentElement.style.display = settings.showFps ? 'flex' : 'none';
         }
 
-        // Apply audio latency offset
+        // Apply audio latency offset and store it for the playhead RAF loop
         if (this._settings) {
-            this._settings.audioLatencyOffset = settings.audioLatency;
+            const latencyMs = settings.audioLatency || 0;
+            this._settings.audioLatencyOffset = latencyMs;
+            // If audio is loaded, shift current position to compensate immediately
+            if (this.audioPlayer && this.audioPlayer.src && latencyMs !== 0) {
+                const shifted = this.audioPlayer.currentTime + (latencyMs / 1000);
+                if (shifted >= 0 && (!this.audioPlayer.duration || shifted <= this.audioPlayer.duration)) {
+                    this.audioPlayer.currentTime = shifted;
+                }
+            }
         }
 
         // Apply theme
@@ -2393,7 +2398,17 @@ export class ChartEditor {
                 notes: this._chartData.raw.notes
             }); // Pass current chart notes to gameplay
             this.gameplay.start(); // Start gameplay simulation
-            this._updateTimelineIndicator();
+
+            // Dedicated RAF loop to keep the timeline playhead in sync with audio.
+            // Replaces the undefined _updateTimelineIndicator() call.
+            const tickPlayhead = () => {
+                if (!this.isSimulating) return;
+                if (this.timeline && this.audioPlayer) {
+                    this.timeline.drawCurrentTimeIndicator(this.audioPlayer.currentTime * 1000);
+                }
+                this.timelineIndicatorRAF = requestAnimationFrame(tickPlayhead);
+            };
+            this.timelineIndicatorRAF = requestAnimationFrame(tickPlayhead);
 
             // Start metronome if enabled
             if (this.metronomeEnabled) {
@@ -2405,6 +2420,7 @@ export class ChartEditor {
             this.audioPlayer.pause();
             this.gameplay.stop(); // Stop gameplay simulation
             cancelAnimationFrame(this.timelineIndicatorRAF);
+            this.timelineIndicatorRAF = null;
 
             // Stop metronome
             this._stopMetronome();
@@ -2983,6 +2999,14 @@ export class ChartEditor {
 
     _initAudioAnalyzer(audioContext) {
         try {
+            // Cancel any existing level meter loop before starting a new one.
+            // Without this, each audio file load adds another infinite RAF loop.
+            this._levelMeterRunning = false;
+            if (this._levelMeterRAF) {
+                cancelAnimationFrame(this._levelMeterRAF);
+                this._levelMeterRAF = null;
+            }
+
             // Create analyzer node
             this.audioAnalyzer = audioContext.createAnalyser();
             this.audioAnalyzer.fftSize = 512; // Increased for better resolution
@@ -3002,15 +3026,20 @@ export class ChartEditor {
             this.levelBarLeft = document.getElementById('level-bar-left');
             this.levelBarRight = document.getElementById('level-bar-right');
 
-            // Start updating level meters
+            // Start the level meter RAF loop (single instance)
+            this._levelMeterRunning = true;
             this._updateLevelMeters();
         } catch (error) {
         }
     }
 
     _updateLevelMeters() {
+        // Stop if the loop has been cancelled (e.g. new audio loaded)
+        if (!this._levelMeterRunning) return;
+
         if (!this.audioAnalyzer || !this.levelBarLeft || !this.levelBarRight) {
-            requestAnimationFrame(() => this._updateLevelMeters());
+            // Not ready yet — wait and retry, but only if still supposed to be running
+            this._levelMeterRAF = requestAnimationFrame(() => this._updateLevelMeters());
             return;
         }
 
@@ -3055,8 +3084,8 @@ export class ChartEditor {
             setTimeout(() => this.levelBarRight.classList.remove('clipping'), 100);
         }
 
-        // Continue updating at 60fps
-        requestAnimationFrame(() => this._updateLevelMeters());
+        // Continue updating at 60fps (tracked so it can be cancelled)
+        this._levelMeterRAF = requestAnimationFrame(() => this._updateLevelMeters());
     }
 
     _detectCodec(filename) {
@@ -3124,19 +3153,17 @@ export class ChartEditor {
             this._onNoteSelected(null);
         });
         window.electronAPI.onMenuEvent('menu-select-all', () => {
-            this.selectionManager.selectAll();
+            this.selectionManager.selectAll(this._chart.notes);
             this.timeline.update();
         });
         window.electronAPI.onMenuEvent('menu-delete-selected', () => {
-            this.selectionManager.deleteSelected();
-            this.timeline.update();
+            this._deleteSelectedNotes();
         });
         window.electronAPI.onMenuEvent('menu-copy', () => {
-            this.selectionManager.copy();
+            this._copySelectedNotes();
         });
         window.electronAPI.onMenuEvent('menu-paste', () => {
-            this.selectionManager.paste();
-            this.timeline.update();
+            this._pasteNotes();
         });
 
         // View menu
@@ -3281,7 +3308,7 @@ export class ChartEditor {
     _stopRecording() {
         this.recordBtn.classList.remove('primary');
         this.audioPlayer.pause();
-        this.gameplay.stop();
+        this.gameplay.stop(); a
         cancelAnimationFrame(this.timelineIndicatorRAF);
 
         this.timeline.setTemporaryNotes([]); // Clear temporary notes from view

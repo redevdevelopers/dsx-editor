@@ -284,15 +284,23 @@ export class AutoSaveManager {
     }
 
     /**
-     * Prompt before closing with unsaved changes
+     * Respond to Electron's native close confirmation request.
+     * main.js sends 'close-requested' via IPC; we reply with whether it's safe to close.
+     * This replaces the broken beforeunload e.preventDefault() approach.
      */
     setupBeforeUnload() {
-        window.addEventListener('beforeunload', (e) => {
-            if (this.hasUnsavedChanges) {
-                e.preventDefault();
-                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-                return e.returnValue;
-            }
-        });
+        if (window.electronAPI && window.electronAPI.onCloseRequested) {
+            window.electronAPI.onCloseRequested(() => {
+                // Reply: true = safe to close, false = has unsaved changes (show dialog)
+                window.electronAPI.respondToClose(!this.hasUnsavedChanges);
+            });
+        } else {
+            // Fallback for non-Electron environments (browser preview etc.)
+            window.addEventListener('beforeunload', (e) => {
+                if (this.hasUnsavedChanges) {
+                    e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+                }
+            });
+        }
     }
 }
