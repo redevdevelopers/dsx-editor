@@ -148,7 +148,7 @@ export class FirstTimeSetup {
                 try {
                     const currentVersion = await window.electronAPI.getAppVersion();
                     const lastSeenVersion = localStorage.getItem('last_seen_version');
-                    
+
                     if (lastSeenVersion && currentVersion !== lastSeenVersion) {
                         await this.showChangelogModal(currentVersion);
                     }
@@ -189,16 +189,16 @@ export class FirstTimeSetup {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         const modal = document.getElementById('changelog-modal');
         const closeBtn = document.getElementById('changelog-modal-close');
         const okBtn = document.getElementById('changelog-ok-btn');
-        
+
         const closeModal = () => {
             modal.style.opacity = '0';
             setTimeout(() => modal.remove(), 250);
         };
-        
+
         closeBtn.addEventListener('click', closeModal);
         okBtn.addEventListener('click', closeModal);
     }
@@ -406,7 +406,7 @@ export class FirstTimeSetup {
                     `;
                 });
                 bodyHTML += '</div>';
-                bodyHTML += `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">Version 6.0.0 RELEASE (30/3/2026)</div>`;
+                bodyHTML += `<div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">Version 6.0.2 RELEASE (22/4/2026)</div>`;
             }
 
             // Render update check screen

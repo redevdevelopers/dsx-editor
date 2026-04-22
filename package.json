@@ -1,6 +1,6 @@
 {
   "name": "dsx-editor",
-  "version": "6.0.1",
+  "version": "6.0.2",
   "description": "DreamSync Studio",
   "main": "main.js",
   "scripts": {
