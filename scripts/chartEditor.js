@@ -2,7 +2,7 @@ import { ChartData } from './chartData.js';
 import { ThreeGameplayPreview } from './GameplayEngine/ThreeGameplayPreview.js';
 import { InputHandler } from './input.js';
 import { Timeline } from './timeline.js';
-import { CommandManager, AddNoteCommand, AddRecordedNotesCommand } from './commandManager.js';
+import { CommandManager, AddNoteCommand, AddRecordedNotesCommand, BulkAddNotesCommand, BulkDeleteNotesCommand } from './commandManager.js';
 import { AudioAnalyzer } from './audioEngine/audioAnalyzer.js';
 import { DebugOverlay } from './UI/debugOverlay.js';
 import { soundManager } from './audioEngine/soundManager.js';
@@ -1635,14 +1635,10 @@ export class ChartEditor {
         const pastedNotes = this.selectionManager.paste(pasteTime);
 
         if (pastedNotes.length > 0) {
-            // Add pasted notes to chart
-            pastedNotes.forEach(note => this._chart.notes.push(note));
-            this._chart.notes.sort((a, b) => a.time - b.time);
+            // Wrap in BulkAddNotesCommand so paste is undoable with Ctrl+Z
+            this.commandManager.execute(new BulkAddNotesCommand(this._chartData, pastedNotes));
             this.timeline.update();
             this._showToast(`Pasted ${pastedNotes.length} note${pastedNotes.length > 1 ? 's' : ''}`);
-
-            // Mark as unsaved
-            this.autoSaveManager.markUnsaved();
         }
     }
 
@@ -1693,14 +1689,13 @@ export class ChartEditor {
     _deleteSelectedNotes() {
         const selected = this.selectionManager.getSelection();
         if (selected.length > 0) {
-            const selectedSet = new Set(selected);
-            this._chart.notes = this._chart.notes.filter(note => !selectedSet.has(note));
+            // Wrap in BulkDeleteNotesCommand so bulk delete is undoable with Ctrl+Z
+            this.commandManager.execute(new BulkDeleteNotesCommand(this._chartData, selected));
+            // Keep this._chart.notes in sync (it's the same array as _chartData.raw.notes)
+            this._chart.notes = this._chartData.raw.notes;
             this.selectionManager.clearSelection();
             this.timeline.update();
             this._showToast(`Deleted ${selected.length} note${selected.length > 1 ? 's' : ''}`);
-
-            // Mark as unsaved
-            this.autoSaveManager.markUnsaved();
         }
     }
 
@@ -1811,8 +1806,9 @@ export class ChartEditor {
         restoreBtn.addEventListener('click', () => {
             if (this.autoSaveManager.restore(recovery.data)) {
                 // Update UI with restored data
+                // Note: _setupEventListeners() is intentionally NOT called here
+                // to prevent duplicate button listeners being registered.
                 this._renderSidebarPanels();
-                this._setupEventListeners();
                 this._updateBPMChangesList();
                 this.timeline.update();
                 this._updateChartStatistics();
@@ -3433,24 +3429,27 @@ export class ChartEditor {
             return;
         }
 
-        const difficulty = parseInt(this.chartDifficultySelect.value) || 2;
-        const bpm = parseInt(this.bpmInput.value) || 120;
-        const offset = parseInt(this.offsetInput.value) || 0;
+        const difficulty  = parseInt(this.chartDifficultySelect.value) || 2;
+        const bpm         = parseInt(this.bpmInput.value) || 120;
+        const offset      = parseInt(this.offsetInput.value) || 0;
+        const bpmChanges  = this._chart.timing.bpmChanges || [{ time: 0, bpm }];
+        const subdivision = this._settings.snapEnabled
+            ? (this._settings.snapDivision || 4)
+            : 4;  // default to quarter notes if snap off
 
-        // Check if trained model exists
         const hasTrainedModel = this.autoMapper.trainedModel !== null;
         const modelStatus = hasTrainedModel ? '✓ Trained model loaded' : '○ No trained model';
 
+        const snapLabel = { 1: '1/1', 2: '1/2', 4: '1/4', 8: '1/8', 16: '1/16' }[subdivision] ?? '1/4';
+
         const confirmed = confirm(
             `AI Chart Generation\n\n` +
-            `This will generate notes automatically based on:\n` +
-            `• Audio analysis (onsets, beats, spectral)\n` +
-            `• maimai-style patterns (circular flows, symmetry)\n` +
-            `• ${modelStatus}\n\n` +
             `Settings:\n` +
             `• Difficulty: ${['', 'EASY', 'NORMAL', 'HARD', 'EXPERT', 'MASTER'][difficulty]}\n` +
-            `• BPM: ${bpm}\n` +
-            `• Offset: ${offset}ms\n\n` +
+            `• BPM: ${bpmChanges.length > 1 ? `${bpmChanges.length} BPM changes` : bpm}\n` +
+            `• Offset: ${offset}ms\n` +
+            `• Note snap: ${snapLabel} beats\n` +
+            `• ${modelStatus}\n\n` +
             `This will replace all existing notes. Continue?`
         );
 
@@ -3462,11 +3461,13 @@ export class ChartEditor {
             const generatedNotes = await this.autoMapper.generateChart({
                 difficulty,
                 bpm,
+                bpmChanges,
                 offset,
-                minNoteInterval: 200,
+                subdivision,
+                quantizeStrength: 0.85,
                 useTrainedModel: true,
-                maimaiStyle: true,
-                maimaiIntensity: 0.7
+                vsrgStyle: true,
+                streamIntensity: 0.6
             });
 
             this._chart.notes = generatedNotes;
@@ -3477,6 +3478,7 @@ export class ChartEditor {
 
             this._showToast(`✓ Generated ${generatedNotes.length} notes!`);
         } catch (error) {
+            console.error('Chart generation failed:', error);
             this._showToast('Error: Chart generation failed');
         }
     }

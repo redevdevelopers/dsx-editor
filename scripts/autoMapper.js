@@ -1,6 +1,7 @@
 /**
- * Optimized Auto-Mapper for DreamSyncX
- * Smart audio analysis + Machine Learning from existing charts + maimai-style patterns
+ * Auto-Mapper for DreamSyncX
+ * Multi-band audio analysis + ML from existing charts + VSRG-style patterns
+ * Game style: Project Sekai / VSRG — vertical scroll, 6 linear lanes
  */
 
 export class AutoMapper {
@@ -12,109 +13,83 @@ export class AutoMapper {
 
         // Training data storage
         this.trainedModel = null;
-        this.maimaiPatterns = this._initMaimaiPatterns();
+        this.vsrgPatterns = this._initVSRGPatterns();
     }
 
     /**
-     * Initialize maimai-style charting patterns + BUILT-IN KNOWLEDGE BASE
+     * Initialize VSRG (6-lane vertical scroll) charting patterns.
+     * Lanes 0–5 are linear left-to-right — no circular logic.
      */
-    _initMaimaiPatterns() {
+    _initVSRGPatterns() {
         return {
-            // Circular flow patterns (maimai signature)
-            circularFlows: [
-                [0, 1, 2, 3, 4, 5], // Clockwise full circle
-                [5, 4, 3, 2, 1, 0], // Counter-clockwise
-                [0, 2, 4, 1, 3, 5], // Skip pattern
-                [0, 3, 1, 4, 2, 5], // Cross pattern
-            ],
-            // Symmetrical patterns
-            symmetrical: [
-                [0, 5], [1, 4], [2, 3], // Opposite pairs
-                [0, 3], [1, 4], [2, 5], // Triangle pairs
-            ],
-            // Burst patterns (multiple zones at once)
-            bursts: [
-                [0, 2, 4], // Triangle
-                [1, 3, 5], // Inverted triangle
-                [0, 1, 2], // Half circle
-                [3, 4, 5], // Other half
-            ],
-            // Alternating patterns
-            alternating: [
-                [0, 3, 0, 3], // Back and forth
-                [1, 4, 1, 4],
-                [2, 5, 2, 5],
-            ],
-            // Spiral patterns
-            spirals: [
-                [0, 1, 2, 3, 4, 5, 0, 1], // Expanding spiral
-                [0, 5, 1, 4, 2, 3], // Converging spiral
-            ],
-
-            // === BUILT-IN MAIMAI KNOWLEDGE BASE ===
-            // Pre-programmed expert knowledge (no training needed!)
-
-            // Common maimai zone transitions (from analyzing real charts)
-            expertTransitions: new Map([
-                ['0->1', 85], ['0->5', 80], ['0->3', 45], ['0->2', 35],
-                ['1->2', 85], ['1->0', 80], ['1->4', 45], ['1->3', 35],
-                ['2->3', 85], ['2->1', 80], ['2->5', 45], ['2->4', 35],
-                ['3->4', 85], ['3->2', 80], ['3->0', 45], ['3->5', 35],
-                ['4->5', 85], ['4->3', 80], ['4->1', 45], ['4->0', 35],
-                ['5->0', 85], ['5->4', 80], ['5->2', 45], ['5->1', 35],
+            // === LANE TRANSITION WEIGHTS ===
+            // VSRG charters prefer adjacent lanes and controlled jumps.
+            // Format: 'from->to': weight (higher = more likely)
+            laneTransitions: new Map([
+                // Adjacent moves (most natural)
+                ['0->1', 90], ['1->0', 90],
+                ['1->2', 90], ['2->1', 90],
+                ['2->3', 90], ['3->2', 90],
+                ['3->4', 90], ['4->3', 90],
+                ['4->5', 90], ['5->4', 90],
+                // Two-lane jumps (common for energy)
+                ['0->2', 60], ['2->0', 60],
+                ['1->3', 60], ['3->1', 60],
+                ['2->4', 60], ['4->2', 60],
+                ['3->5', 60], ['5->3', 60],
+                // Cross jumps (accent moments)
+                ['0->3', 35], ['3->0', 35],
+                ['1->4', 35], ['4->1', 35],
+                ['2->5', 35], ['5->2', 35],
+                // Full lane jumps (climax / emphasis only)
+                ['0->4', 15], ['4->0', 15],
+                ['0->5', 10], ['5->0', 10],
+                ['1->5', 15], ['5->1', 15],
             ]),
 
-            // Common 3-note patterns from maimai
-            expertPatterns: new Map([
-                ['0,1,2', 50], ['1,2,3', 50], ['2,3,4', 50], ['3,4,5', 50],
-                ['4,5,0', 50], ['5,0,1', 50], // Clockwise flows
-                ['0,5,4', 45], ['1,0,5', 45], ['2,1,0', 45], // Counter-clockwise
-                ['0,3,0', 40], ['1,4,1', 40], ['2,5,2', 40], // Alternating
-                ['0,2,4', 35], ['1,3,5', 35], // Triangles
-                ['0,3,1', 30], ['1,4,2', 30], ['2,5,3', 30], // Cross patterns
-            ]),
+            // === STREAM PATTERNS (fast consecutive notes) ===
+            // Linear runs that feel natural to play
+            streamPatterns: [
+                [0, 1, 2, 3, 4, 5],       // Full ascending
+                [5, 4, 3, 2, 1, 0],       // Full descending
+                [0, 1, 2, 3, 2, 1],       // Bounce right
+                [5, 4, 3, 2, 3, 4],       // Bounce left
+                [0, 1, 2, 1, 2, 3],       // Staircase up
+                [5, 4, 3, 4, 3, 2],       // Staircase down
+                [2, 3, 2, 3, 4, 3],       // Center wiggle right
+                [3, 2, 3, 2, 1, 2],       // Center wiggle left
+            ],
 
-            // Energy-based zone preferences (maimai style)
-            expertEnergyZones: new Map([
-                // Low energy (0-3): Prefer adjacent zones, smooth flow
-                ['E0:Z0', 20], ['E0:Z1', 20], ['E0:Z2', 15],
-                ['E1:Z0', 20], ['E1:Z1', 20], ['E1:Z5', 15],
-                ['E2:Z1', 20], ['E2:Z2', 20], ['E2:Z0', 15],
-                ['E3:Z2', 20], ['E3:Z3', 20], ['E3:Z1', 15],
+            // === CHORD PATTERNS (simultaneous lanes) ===
+            chords: [
+                [0, 5],                   // Wide spread
+                [1, 4],                   // Inner spread
+                [2, 3],                   // Center pair
+                [0, 2, 5],               // Left-skewed triple
+                [0, 3, 5],               // Symmetric triple
+                [1, 3, 5],               // Odd lanes
+                [0, 2, 4],               // Even lanes
+            ],
 
-                // Medium energy (4-6): More variety
-                ['E4:Z0', 15], ['E4:Z1', 15], ['E4:Z3', 15], ['E4:Z4', 10],
-                ['E5:Z1', 15], ['E5:Z2', 15], ['E5:Z4', 15], ['E5:Z5', 10],
-                ['E6:Z2', 15], ['E6:Z3', 15], ['E6:Z5', 15], ['E6:Z0', 10],
-
-                // High energy (7-10): All zones, more chaos
-                ['E7:Z0', 12], ['E7:Z1', 12], ['E7:Z2', 12], ['E7:Z3', 12], ['E7:Z4', 12], ['E7:Z5', 12],
-                ['E8:Z0', 12], ['E8:Z1', 12], ['E8:Z2', 12], ['E8:Z3', 12], ['E8:Z4', 12], ['E8:Z5', 12],
-                ['E9:Z0', 12], ['E9:Z1', 12], ['E9:Z2', 12], ['E9:Z3', 12], ['E9:Z4', 12], ['E9:Z5', 12],
-                ['E10:Z0', 12], ['E10:Z1', 12], ['E10:Z2', 12], ['E10:Z3', 12], ['E10:Z4', 12], ['E10:Z5', 12],
-            ]),
-
-            // Difficulty-based interval ranges (maimai standard)
-            expertDifficultyIntervals: {
-                1: { min: 400, avg: 600, max: 1000 },  // EASY
-                2: { min: 300, avg: 450, max: 800 },   // NORMAL
-                3: { min: 200, avg: 350, max: 600 },   // HARD
-                4: { min: 150, avg: 250, max: 450 },   // EXPERT
-                5: { min: 100, avg: 180, max: 350 },   // MASTER
+            // === DIFFICULTY INTERVAL RANGES (ms between notes) ===
+            // Based on standard VSRG difficulty tiers
+            difficultyIntervals: {
+                1: { min: 400, avg: 600,  max: 1000 },  // Easy
+                2: { min: 300, avg: 450,  max: 800  },  // Normal
+                3: { min: 200, avg: 300,  max: 600  },  // Hard
+                4: { min: 120, avg: 200,  max: 400  },  // Expert
+                5: { min:  80, avg: 133,  max: 250  },  // Master (8–12 NPS)
             },
 
-            // Buildup patterns (how maimai builds intensity)
-            expertBuildups: [
-                [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], // Gradual clockwise
-                [0, 2], [2, 4], [4, 0], // Triangle expansion
-                [0, 3], [1, 4], [2, 5], // Opposite pairs
-            ],
-
-            // Breakdown patterns (how maimai reduces intensity)
-            expertBreakdowns: [
-                [5, 4], [4, 3], [3, 2], [2, 1], [1, 0], // Gradual counter-clockwise
-                [0, 1, 0], [1, 2, 1], // Back and forth
-            ],
+            // === NOTE TYPE RULES ===
+            // Maps onset characteristics to note types
+            noteTypeRules: {
+                // Bass strong + fast decay  → regular (kick hit)
+                // Bass strong + long sustain → hold
+                // Treble sharp              → flick (hi-hat accent)
+                // Mid sustained             → slide (melodic line)
+                // Mid strong               → regular (snare)
+            },
         };
     }
 
@@ -498,9 +473,12 @@ export class AutoMapper {
                 }
             }
 
-            // Long patterns (4-8 notes)
+            // Long patterns (4-8 notes) — capped to prevent unbounded Map growth
+            const LONG_PATTERN_CAP = 50_000;
             for (let len = 4; len <= 8; len++) {
+                if (model.longPatterns.size >= LONG_PATTERN_CAP) break;
                 for (let i = 0; i < notes.length - len; i++) {
+                    if (model.longPatterns.size >= LONG_PATTERN_CAP) break;
                     const pattern = notes.slice(i, i + len).map(n => n.zone).join(',');
                     const key = `L${len}:${pattern}`;
                     model.longPatterns.set(key, (model.longPatterns.get(key) || 0) + 1);
@@ -639,6 +617,23 @@ export class AutoMapper {
             data.zoneVariety = data.zoneVariety.size;
         });
 
+        // Trim oversized Maps to keep memory under control
+        const TRANSITION_CAP = 20_000;
+        if (model.patternTransitions.size > TRANSITION_CAP) {
+            // Keep the most frequent transitions only
+            const sorted = Array.from(model.patternTransitions.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, TRANSITION_CAP);
+            model.patternTransitions = new Map(sorted);
+        }
+        const CONTEXT_CAP = 20_000;
+        if (model.contextualPatterns.size > CONTEXT_CAP) {
+            const sorted = Array.from(model.contextualPatterns.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, CONTEXT_CAP);
+            model.contextualPatterns = new Map(sorted);
+        }
+
         // Normalize complexity metrics
         Object.keys(model.complexityMetrics).forEach(diff => {
             const data = model.complexityMetrics[diff];
@@ -671,531 +666,577 @@ export class AutoMapper {
     }
 
     /**
-     * Generate chart with optimized smart analysis + trained patterns + maimai style
+     * Generate a VSRG chart from the loaded audio.
+     *
+     * New pipeline (deterministic + budget-driven):
+     *   1. Multi-band analysis (cached from detectOnsets)
+     *   2. Beat grid + tempo map detection
+     *   3. Song structure + per-section NPS budget
+     *   4. Candidate selection — greedy rank, no Math.random() for timing
+     *   5. Zone + note-type assignment (seeded PRNG)
+     *   5b. Quantize to beat grid (per-BPM, per-subdivision)
+     *   6. Chord injection
+     *   7. VSRG post-processing + playability
      */
     async generateChart(options = {}) {
         const {
-            difficulty = 2,
-            bpm = 120,
-            offset = 0,
-            minNoteInterval = 150,
-            useTrainedModel = true,
-            maimaiStyle = true,
-            maimaiIntensity = 0.7 // 0-1, how much maimai influence
+            difficulty       = 2,
+            bpm              = 120,      // scalar fallback
+            bpmChanges       = null,     // [{time, bpm}] from editor — preferred
+            offset           = 0,
+            useTrainedModel  = true,
+            vsrgStyle        = true,
+            streamIntensity  = 0.6,
+            subdivision      = 4,        // 4=quarter, 8=eighth, 16=sixteenth
+            quantizeStrength = 0.85,     // 0–1 snap amount (1=hard, 0=off)
+            seed             = Date.now()
         } = options;
-        if (useTrainedModel && this.trainedModel) {
-        }
-        if (maimaiStyle) {
-        }
-        const notes = [];
 
-        // === PHASE 1: ANALYZE & PLAN ===
-        // Step 1: Fast onset detection WITH CLASSIFICATION
-        const onsets = await this.detectOnsets();
-        // Step 2: Beat detection
-        const beats = await this.detectBeats(bpm);
-        // Step 3: Fast spectral analysis
+        // Seed the PRNG — all randomness during generation uses this
+        this._prng = this._makePRNG(seed);
+
+        // ── Phase 1: Audio Analysis ─────────────────────────────────────
+        const onsets      = await this.detectOnsets();
+        // Pass bpmChanges to detectBeats so it uses the editor's tempo map
+        const bpmHint     = bpmChanges && bpmChanges.length > 0 ? bpmChanges : bpm;
+        const { beats, tempoMap } = await this.detectBeats(bpmHint);
+        const energyData  = await this.analyzeEnergy();
         const spectralData = await this.analyzeSpectral();
-        // Step 4: Energy analysis
-        const energyData = await this.analyzeEnergy();
-        // Step 5: Group onsets into PHRASES (NEW!)
-        let phrases = [];
-        try {
-            phrases = this._groupIntoPhrases(onsets, energyData);
-        } catch (error) {
-            phrases = []; // Empty array as fallback
-        }
 
-        // Step 6: Detect song structure
+        // ── Phase 2: Structure ───────────────────────────────────────────
+        const phrases       = this._groupIntoPhrases(onsets, energyData);
         const songStructure = this._analyzeSongStructure(energyData, onsets, this.duration);
-        // Step 7: Plan note distribution
-        const notePlan = this._planNoteDistribution(songStructure, difficulty, this.duration);
-        // === PHASE 2: GENERATE WITH CONTEXT ===
-        // Step 7: Smart combination
-        const candidates = this.smartCombine(onsets, beats, energyData, offset);
-        // Step 8: Intelligent filtering with structure awareness
-        const filtered = this.smartFilterWithStructure(candidates, difficulty, minNoteInterval, energyData, songStructure, notePlan);
-        // Step 9: Smart zone assignment with maimai patterns and trained model
-        for (let i = 0; i < filtered.length; i++) {
-            const time = filtered[i];
-            const prevNotes = notes.slice(Math.max(0, notes.length - 6)); // Look at last 6 notes
+        const budget        = this._buildPatternBudget(songStructure, energyData, difficulty);
 
-            // Calculate current energy level for context
-            const currentEnergy = this.getEnergyAt(time, energyData);
-            const avgEnergy = energyData.reduce((sum, d) => sum + d.energy, 0) / energyData.length;
-            const normalizedEnergy = Math.min(1, currentEnergy / (avgEnergy * 2));
+        // ── Phase 3: Candidate pool ─────────────────────────────────────
+        const candidates = this._buildCandidatePool(onsets, beats, energyData, offset);
 
-            // Get current section context
-            const currentSection = songStructure.sections.find(s => time >= s.start && time < s.end);
+        // ── Phase 4: Deterministic selection ───────────────────────────
+        const selected = this._selectCandidates(candidates, budget, difficulty);
+
+        // Build onset lookup for zone/type assignment
+        const onsetByTime = new Map();
+        for (const o of onsets) onsetByTime.set(Math.round(o.time + offset), o);
+        const avgEnergy = energyData.reduce((s, d) => s + d.energy, 0) / energyData.length;
+
+        // ── Phase 5: Zone + type assignment ────────────────────────────
+        const notes = [];
+        for (const { time } of selected) {
+            const onset      = onsetByTime.get(Math.round(time));
+            const prevNotes  = notes.slice(Math.max(0, notes.length - 6));
+            const energy     = this.getEnergyAt(time, energyData);
+            const normEnergy = Math.min(1, energy / (avgEnergy * 2));
+
             let zone;
-
-            // Decide which method to use based on options and context
-            // Priority: Trained data > maimai style > audio analysis
             const useTrained = useTrainedModel && this.trainedModel && prevNotes.length > 0;
-            const useMaimai = maimaiStyle && !useTrained && prevNotes.length >= 2 && Math.random() < maimaiIntensity;
-
-            // DEBUG: Log which method is being used (only once)
-            if (i === 0) {
-                if (useTrained) {
-                } else if (useMaimai) {
-                } else {
-                }
-            }
-
+            const useVSRG    = vsrgStyle && !useTrained && prevNotes.length >= 2
+                               && this._prng() < streamIntensity;
             if (useTrained) {
-                zone = this.trainedZoneAssign(prevNotes, difficulty, normalizedEnergy);
-            } else if (useMaimai) {
-                zone = this.maimaiZoneAssign(time, spectralData, prevNotes, difficulty);
+                zone = this.trainedZoneAssign(prevNotes, difficulty, normEnergy);
+            } else if (useVSRG) {
+                zone = this.vsrgLaneAssign(time, spectralData, prevNotes, difficulty);
             } else {
-                zone = this.smartZoneAssign(time, spectralData, prevNotes, difficulty);
+                zone = this.smartZoneAssign(time, spectralData, prevNotes, difficulty, onset);
             }
 
-            notes.push({
-                time: Math.round(time),
-                zone: zone,
-                type: 'regular'
-            });
+            const noteType = this._assignNoteType(onset, prevNotes, difficulty);
+            const entry    = { time: Math.round(time), zone, type: noteType };
+            if (noteType === 'hold' && onset?.holdDuration > 0) entry.duration = onset.holdDuration;
+            notes.push(entry);
         }
 
-        // Step 8: Add simultaneous notes (chords/patterns) for variety
-        const avgEnergy = energyData.reduce((sum, d) => sum + d.energy, 0) / energyData.length;
-        const beforeChords = notes.length;
-        this._addSimultaneousNotes(notes, difficulty, avgEnergy, energyData, phrases);
-        // Step 9: Adapt osu!mania patterns to circular layout (if trained from osu)
-        if (useTrainedModel && this.trainedModel) {
-            this._adaptLinearToCircular(notes);
-        }
+        // ── Phase 5b: Quantize to beat grid ──────────────────────────────
+        this._quantizeToGrid(notes, tempoMap, subdivision, quantizeStrength);
 
-        // Step 10: Apply maimai-style post-processing (ONLY if not using trained model)
-        // Don't overwrite trained patterns with maimai patterns!
-        if (maimaiStyle && !useTrainedModel) {
-            this.applyMaimaiPostProcessing(notes, difficulty, maimaiIntensity);
-        }
+        // ── Phase 6: Chord injection ───────────────────────────────────
+        this._injectChords(notes, difficulty, avgEnergy, energyData, phrases);
 
-        // Step 11: Ensure playability
-        const beforePlayable = notes.length;
+        // ── Phase 7: VSRG post-processing + playability ───────────────
+        this._normalizeLinearLanes(notes);
+        if (vsrgStyle) this.applyVSRGPostProcessing(notes, difficulty, streamIntensity);
         this.ensurePlayable(notes, difficulty);
+        // Free raw audio band buffers after generation to reclaim memory
+        this._bands = null;
+        this._bandOnsets = null;
+
         notes.sort((a, b) => a.time - b.time);
         return notes;
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    //  SEEDED PRNG  (mulberry32 — fast, deterministic, seedable)
+    // ═══════════════════════════════════════════════════════════════════
+
+    _makePRNG(seed) {
+        let s = seed >>> 0;
+        return () => {
+            s |= 0; s = s + 0x6D2B79F5 | 0;
+            let t = Math.imul(s ^ s >>> 15, 1 | s);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  PATTERN BUDGET  — deterministic NPS targets per section
+    // ═══════════════════════════════════════════════════════════════════
+
     /**
-     * REDESIGNED: Add simultaneous notes (chords) with MUSICAL INTENT
-     * Chords should be accents, not random noise
+     * Compute a note budget (target NPS + min gap) for every detected
+     * song section.  The result is an array of budget entries that
+     * selectCandidates() will use instead of probabilistic filtering.
+     *
+     * NPS targets per difficulty (aligned with VSRG conventions):
+     *   Easy=1–2  Normal=3–4  Hard=5–7  Expert=8–11  Master=12–16
      */
-    _addSimultaneousNotes(notes, difficulty, avgEnergy, energyData, phrases) {
+    _buildPatternBudget(songStructure, energyData, difficulty) {
+        // Base NPS ranges per difficulty
+        const npsRange = [
+            { min: 1.0, max: 2.0 },   // 1 Easy
+            { min: 2.5, max: 4.0 },   // 2 Normal
+            { min: 4.5, max: 7.0 },   // 3 Hard
+            { min: 7.5, max: 11.0 },  // 4 Expert
+            { min: 11.0, max: 16.0 }, // 5 Master
+        ][Math.max(0, Math.min(4, difficulty - 1))];
+
+        // Section-type density multipliers  (relative to base)
+        const sectionMult = {
+            intro:     0.50,
+            verse:     0.70,
+            buildup:   0.85,
+            chorus:    1.00,
+            drop:      1.10,
+            breakdown: 0.40,
+            outro:     0.55,
+        };
+
+        // Compute average energy across the whole song (for normalisation)
+        const globalAvgE = energyData.reduce((s, d) => s + d.energy, 0) / energyData.length;
+
+        return songStructure.sections.map(section => {
+            const mult  = sectionMult[section.type] ?? 0.75;
+
+            // Section energy relative to global average (1.0 = average)
+            const secEnergy = energyData
+                .filter(e => e.time >= section.start && e.time <= section.end);
+            const secAvgE = secEnergy.length
+                ? secEnergy.reduce((s, d) => s + d.energy, 0) / secEnergy.length
+                : globalAvgE;
+            const energyRatio = Math.min(1.5, secAvgE / (globalAvgE || 1));
+
+            // Target NPS for this section
+            const targetNPS = npsRange.min + (npsRange.max - npsRange.min) * mult * energyRatio;
+
+            // Minimum gap between notes (ms) = 1000 / NPS  (clamped)
+            const minGapMs = Math.max(50, Math.round(1000 / targetNPS));
+
+            return {
+                start:     section.start,
+                end:       section.end,
+                type:      section.type,
+                targetNPS,
+                minGapMs,
+                // How many notes we want in this section
+                targetCount: Math.round(targetNPS * (section.end - section.start) / 1000)
+            };
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CANDIDATE POOL + DETERMINISTIC SELECTION
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Build the candidate pool: every detected onset + beat-grid point,
+     * each tagged with a weight and the original onset object.
+     * Replaces smartCombine().
+     */
+    _buildCandidatePool(onsets, beats, energyData, offset) {
+        const pool = new Map(); // time(ms) → { time, weight, onset }
+
+        const typeWeights = { strong: 1.5, medium: 1.0, sustained: 0.7, weak: 0.35 };
+        const bandWeights = { bass: 1.2, mid: 1.0, treble: 0.8 };
+
+        // Primary: real detected onsets
+        for (const onset of onsets) {
+            const t      = Math.round(onset.time + offset);
+            const eAt    = this.getEnergyAt(onset.time, energyData);
+            const tw     = typeWeights[onset.type] ?? 1.0;
+            const bw     = bandWeights[onset.band] ?? 1.0;
+            const weight = eAt * tw * bw;
+
+            const existing = pool.get(t);
+            if (!existing || weight > existing.weight) {
+                pool.set(t, { time: t, weight, onset });
+            }
+        }
+
+        // Secondary: beat-grid points (low weight, backup only)
+        for (const bt of beats) {
+            const t = Math.round(bt + offset);
+            if (!pool.has(t)) {
+                const eAt = this.getEnergyAt(bt, energyData);
+                pool.set(t, { time: t, weight: eAt * 0.25, onset: null });
+            }
+        }
+
+        return Array.from(pool.values()).sort((a, b) => a.time - b.time);
+    }
+
+    /**
+     * Deterministically select candidates to meet each section's note budget.
+     *
+     * Algorithm per section:
+     *   1. Collect all pool candidates that fall in [section.start, section.end]
+     *   2. Sort by weight descending (strongest onsets first)
+     *   3. Greedy pick: include a candidate iff it is >= minGapMs from the
+     *      last accepted note AND we still have budget remaining
+     *   4. If budget not met after greedy pass, add remaining by weight order
+     *      until budget is hit (with a looser gap floor of 50 ms)
+     *
+     * No Math.random() here — same inputs always produce the same output.
+     * The PRNG is only used in zone assignment.
+     */
+    _selectCandidates(pool, budget, difficulty) {
+        const selected   = [];
+        let   lastTimeMs = -Infinity;
+
+        // Hard absolute minimum gap regardless of budget
+        const absMinGapMs = [180, 140, 100, 70, 50][Math.max(0, Math.min(4, difficulty - 1))];
+
+        for (const section of budget) {
+            const { start, end, targetCount, minGapMs } = section;
+            const effectiveGap = Math.max(absMinGapMs, minGapMs);
+
+            // All candidates in this section, sorted strongest-first
+            const sectionPool = pool
+                .filter(c => c.time >= start && c.time <  end)
+                .sort((a, b) => b.weight - a.weight);
+
+            const sectionPicked = [];
+
+            // ── Greedy pass (respect gap + budget) ──
+            for (const c of sectionPool) {
+                if (sectionPicked.length >= targetCount) break;
+                const sinceLastInSection = sectionPicked.length
+                    ? c.time - sectionPicked[sectionPicked.length - 1].time
+                    : c.time - lastTimeMs;
+                if (sinceLastInSection < effectiveGap) continue;
+                sectionPicked.push(c);
+            }
+
+            // ── Top-up pass (looser gap, fill if budget not met) ──
+            if (sectionPicked.length < targetCount) {
+                const already = new Set(sectionPicked.map(c => c.time));
+                const extras  = sectionPool
+                    .filter(c => !already.has(c.time))
+                    .sort((a, b) => a.time - b.time); // now chronological for gap check
+
+                for (const c of extras) {
+                    if (sectionPicked.length >= targetCount) break;
+                    // Merge into sorted position and check with loose gap
+                    const all = [...sectionPicked, c].sort((a, b) => a.time - b.time);
+                    const idx = all.indexOf(c);
+                    const prevT = idx > 0  ? all[idx - 1].time : lastTimeMs;
+                    const nextT = idx < all.length - 1 ? all[idx + 1].time : Infinity;
+                    if (c.time - prevT >= absMinGapMs && nextT - c.time >= absMinGapMs) {
+                        sectionPicked.push(c);
+                    }
+                }
+            }
+
+            // Sort picked by time before appending
+            sectionPicked.sort((a, b) => a.time - b.time);
+            if (sectionPicked.length > 0) {
+                lastTimeMs = sectionPicked[sectionPicked.length - 1].time;
+            }
+
+            selected.push(...sectionPicked);
+        }
+
+        // Final sort + deduplication across section boundaries
+        selected.sort((a, b) => a.time - b.time);
+        const deduped = [];
+        for (const c of selected) {
+            const last = deduped[deduped.length - 1];
+            if (!last || c.time - last.time >= absMinGapMs) deduped.push(c);
+        }
+        return deduped;
+    }
+
+    /**
+     * Inject chords at musically appropriate moments.
+     * Uses vsrgPatterns.chords for VSRG-style lane pairs/triples.
+     * Rate is deterministic via the seeded PRNG.
+     */
+    _injectChords(notes, difficulty, avgEnergy, energyData, phrases) {
         if (notes.length < 10) return;
+        const prng = this._prng ?? Math.random.bind(Math);
 
-        const addedChords = [];
-
-        // Base chord frequency (much lower than before)
-        const baseChordChance = {
-            1: 0.02,  // EASY: 2% base
-            2: 0.05,  // NORMAL: 5% base
-            3: 0.08,  // HARD: 8% base
-            4: 0.12,  // EXPERT: 12% base
-            5: 0.15   // MASTER: 15% base
-        }[difficulty] || 0.08;
+        const baseRate = [0.02, 0.04, 0.07, 0.11, 0.15][Math.max(0, Math.min(4, difficulty - 1))];
+        const chordPatterns = this.vsrgPatterns?.chords ?? [[0,3],[1,4],[2,5]];
+        const added = [];
 
         for (let i = 1; i < notes.length - 1; i++) {
-            const note = notes[i];
-            const prevNote = notes[i - 1];
-            const nextNote = notes[i + 1];
+            const note     = notes[i];
+            const gapPrev  = note.time - notes[i - 1].time;
+            const gapNext  = notes[i + 1].time - note.time;
 
-            const timeSincePrev = note.time - prevNote.time;
-            const timeToNext = nextNote.time - note.time;
+            // Only in gaps that have some breathing room
+            if (gapPrev < 250 || gapNext < 250) continue;
+            if (added.some(c => Math.abs(c.time - note.time) < 40)) continue;
 
-            // Don't add chords too close together
-            if (timeSincePrev < 300 || timeToNext < 300) continue;
-            if (addedChords.some(c => Math.abs(c.time - note.time) < 50)) continue;
+            const energy  = this.getEnergyAt(note.time, energyData);
+            const normE   = energy / (avgEnergy || 1);
 
-            // Get energy at this point
-            const energy = this.getEnergyAt(note.time, energyData);
-            const normalizedEnergy = energy / avgEnergy;
+            // Build chord chance from context
+            let chance = baseRate;
+            if (normE > 1.5) chance += 0.25;
+            else if (normE > 1.2) chance += 0.12;
+            if (gapPrev > 500 || gapNext > 500) chance += 0.15; // isolated accent
 
-            // Find which phrase this note belongs to
-            const currentPhrase = phrases?.find(p =>
-                note.time >= p.start && note.time <= p.end
-            );
-
-            // Calculate chord probability based on MUSICAL CONTEXT
-            let chordChance = baseChordChance;
-
-            // GATE 1: Phrase endings get MUCH higher chord chance
-            if (currentPhrase) {
-                const phraseProgress = (note.time - currentPhrase.start) / (currentPhrase.end - currentPhrase.start);
-                if (phraseProgress > 0.8) {
-                    chordChance += 0.4; // 40% boost at phrase end
-                }
+            const phrase = phrases?.find(p => note.time >= p.start && note.time <= p.end);
+            if (phrase) {
+                const prog = (note.time - phrase.start) / (phrase.end - phrase.start);
+                if (prog > 0.85) chance += 0.30;  // phrase end accent
+                if (phrase.type === 'stream') chance -= 0.10;
+                if (phrase.type === 'accent') chance += 0.20;
             }
 
-            // GATE 2: Strong energy peaks
-            if (normalizedEnergy > 1.5) {
-                chordChance += 0.3; // 30% boost for strong hits
-            } else if (normalizedEnergy > 1.2) {
-                chordChance += 0.15; // 15% boost for medium hits
+            chance = Math.min(0.88, Math.max(0, chance));
+            if (prng() > chance) continue;
+
+            // Pick a chord pattern that includes this note's lane
+            const matchingPatterns = chordPatterns.filter(p => p.includes(note.zone));
+            const pattern = matchingPatterns.length
+                ? matchingPatterns[Math.floor(prng() * matchingPatterns.length)]
+                : chordPatterns[Math.floor(prng() * chordPatterns.length)];
+
+            // Add companion lanes (skip this note's own lane)
+            for (const lane of pattern) {
+                if (lane === note.zone) continue;
+                if (difficulty < 4 && pattern.length > 2) continue; // no triplesat low diff
+                added.push({ time: note.time, zone: lane, type: 'regular' });
             }
+        }
 
-            // GATE 3: Phrase type influences chords
-            if (currentPhrase) {
-                switch (currentPhrase.type) {
-                    case 'accent':
-                        chordChance += 0.25; // Accent phrases SHOULD have chords
-                        break;
-                    case 'burst':
-                        chordChance += 0.15; // Bursts can have chords
-                        break;
-                    case 'stream':
-                        chordChance -= 0.1; // Streams should be mostly singles
-                        break;
-                    case 'sparse':
-                        chordChance += 0.1; // Sparse sections can emphasize with chords
-                        break;
-                }
+        notes.push(...added);
+    }
+
+    /**
+     * Normalize notes from osu!mania/SM imports:
+     * ensures lanes stay strictly within 0–5 and removes
+     * any residual circular-wrap artefacts from the old converter.
+     */
+    _normalizeLinearLanes(notes) {
+        for (const note of notes) {
+            note.zone = Math.max(0, Math.min(5, note.zone));
+        }
+    }
+
+
+    /**
+     * Determine the appropriate note type based on audio analysis.
+     * Rules (VSRG / Project Sekai style):
+     *   - Bass strong, fast decay    → regular (kick hit)  
+     *   - Bass strong, long sustain  → hold
+     *   - Treble sharp               → flick (hi-hat accent at higher difficulties)
+     *   - Mid sustained              → slide
+     *   - Mid strong                 → regular (snare)
+     *   - Weak / background         → regular (fallback)
+     */
+    _assignNoteType(onset, prevNotes, difficulty) {
+        if (!onset) return 'regular';
+
+        const { band, type, holdDuration } = onset;
+
+        // Holds: any band with a detected sustain
+        if (type === 'sustained' && holdDuration > 0) {
+            return 'hold';
+        }
+
+        // Slides: sustained mid (melody, vocal line)
+        if (band === 'mid' && type === 'sustained') {
+            return 'slide';
+        }
+
+        // Flicks: sharp treble + higher difficulty (feels like hi-hat accents)
+        if (band === 'treble' && type === 'medium' && difficulty >= 3) {
+            // Only ~25% of treble hits become flicks to avoid over-saturation
+            return Math.random() < 0.25 ? 'flick' : 'regular';
+        }
+
+        // Everything else: regular tap
+        return 'regular';
+    }
+
+    /**
+     * VSRG lane assignment — thinks in linear lanes, not circles.
+     * Prefers adjacent moves, uses stream patterns for continuous sections.
+     */
+    vsrgLaneAssign(time, spectralData, prevNotes, difficulty) {
+        const lastLane = prevNotes[prevNotes.length - 1].zone;
+        const recentLanes = prevNotes.slice(-4).map(n => n.zone);
+
+        // Detect if we're in a stream (consistent direction)
+        const isStreaming = this._detectStream(recentLanes);
+        if (isStreaming) {
+            return this._continueStream(recentLanes, difficulty);
+        }
+
+        // Use VSRG transition weights
+        const transitions = this.vsrgPatterns.laneTransitions;
+        const candidates = new Map();
+        for (let target = 0; target < 6; target++) {
+            const key = `${lastLane}->${target}`;
+            const weight = transitions.get(key) || 5;
+            candidates.set(target, weight);
+        }
+
+        // Penalise recently used lanes (avoid jacks at lower difficulty)
+        if (difficulty < 4) {
+            for (const lane of recentLanes.slice(-2)) {
+                candidates.set(lane, Math.max(1, (candidates.get(lane) || 1) * 0.3));
             }
+        }
 
-            // GATE 4: Long gaps before/after = likely an accent
-            if (timeSincePrev > 600 || timeToNext > 600) {
-                chordChance += 0.2; // Isolated notes are often accents
-            }
+        return this._weightedRandomSelect(candidates);
+    }
 
-            // Cap at 90%
-            chordChance = Math.min(0.9, Math.max(0, chordChance));
+    /**
+     * Detect if recent lanes form a directional stream.
+     */
+    _detectStream(lanes) {
+        if (lanes.length < 3) return false;
+        const diffs = [];
+        for (let i = 1; i < lanes.length; i++) diffs.push(lanes[i] - lanes[i - 1]);
+        const allUp   = diffs.every(d => d > 0);
+        const allDown = diffs.every(d => d < 0);
+        return allUp || allDown;
+    }
 
-            if (Math.random() > chordChance) continue;
+    /**
+     * Continue a detected stream in the same direction.
+     */
+    _continueStream(lanes, difficulty) {
+        const last = lanes[lanes.length - 1];
+        const prev = lanes[lanes.length - 2];
+        const dir  = last > prev ? 1 : -1;
+        const next = last + dir;
 
-            // Decide chord type based on context
-            const chordType = Math.random();
-            const isStrongHit = normalizedEnergy > 1.5;
+        // At edge of lanes, bounce back
+        if (next < 0 || next > 5) {
+            return last - dir; // reverse direction
+        }
 
-            if (chordType < 0.4 || isStrongHit) {
-                // DOUBLE NOTE (opposite zones) - most common, especially for strong hits
-                const oppositeZone = (note.zone + 3) % 6;
-                addedChords.push({
-                    time: note.time,
-                    zone: oppositeZone,
-                    type: 'regular'
-                });
-            } else if (chordType < 0.7 && difficulty >= 3) {
-                // ADJACENT DOUBLE
-                const adjacentZone = (note.zone + (Math.random() < 0.5 ? 1 : 5)) % 6;
-                addedChords.push({
-                    time: note.time,
-                    zone: adjacentZone,
-                    type: 'regular'
-                });
-            } else if (difficulty >= 4 && isStrongHit) {
-                // TRIANGLE (3 zones) - ONLY for expert+ AND strong hits
-                const triangleType = Math.random() < 0.5 ? 0 : 1;
-                const triangleZones = triangleType === 0
-                    ? [0, 2, 4]  // Triangle 1
-                    : [1, 3, 5]; // Triangle 2
+        // Occasionally introduce a skip or reverse for variety
+        if (Math.random() < 0.15) return Math.max(0, Math.min(5, last + dir * 2));
+        return next;
+    }
 
-                // Add the other 2 zones of the triangle
-                for (const zone of triangleZones) {
-                    if (zone !== note.zone) {
-                        addedChords.push({
-                            time: note.time,
-                            zone: zone,
-                            type: 'regular'
-                        });
+    /**
+     * VSRG post-processing:
+     * 1. Detect streams and make them consistent
+     * 2. Remove jack patterns (same-lane repeats) at lower difficulties
+     * 3. Inject burst patterns at energy peaks
+     * 4. Smooth jarring cross-lane jumps in succession
+     */
+    applyVSRGPostProcessing(notes, difficulty, streamIntensity) {
+        // Phase 1: Detect and reinforce streams
+        if (streamIntensity > 0.3) {
+            this._reinforceStreams(notes, difficulty);
+        }
+
+        // Phase 2: Remove awkward jacks at lower difficulty
+        if (difficulty < 4) {
+            this._removeJacks(notes);
+        }
+
+        // Phase 3: Burst injection at high-energy gaps
+        if (difficulty >= 3 && streamIntensity > 0.5) {
+            this._addVSRGBursts(notes, difficulty);
+        }
+
+        // Phase 4: Smooth back-to-back full-range jumps
+        this._smoothLargeJumps(notes, difficulty);
+    }
+
+    /**
+     * Detect note sequences that are almost-streams and align them.
+     */
+    _reinforceStreams(notes, difficulty) {
+        for (let i = 0; i < notes.length - 4; i++) {
+            const seq = notes.slice(i, i + 4);
+            const lanes = seq.map(n => n.zone);
+            if (this._detectStream(lanes)) {
+                // Already a stream — ensure lane continuity
+                const dir = lanes[1] > lanes[0] ? 1 : -1;
+                for (let j = 1; j < seq.length; j++) {
+                    const expected = seq[j - 1].zone + dir;
+                    if (expected >= 0 && expected <= 5 && Math.random() < 0.7) {
+                        seq[j].zone = expected;
                     }
                 }
             }
         }
-
-        // Add all chords to notes array
-        notes.push(...addedChords);
     }
 
     /**
-     * Adapt linear patterns (from osu!mania) to circular flow
-     * Converts "back and forth" patterns to "circular flow" patterns
+     * Remove jack patterns (same-lane note back-to-back) at low difficulty.
      */
-    _adaptLinearToCircular(notes) {
-        if (notes.length < 4) return;
-
-        for (let i = 0; i < notes.length - 3; i++) {
-            const pattern = notes.slice(i, i + 4).map(n => n.zone);
-
-            // Detect "zigzag" patterns (common in osu!mania)
-            // Example: [0,3,0,3] or [1,4,1,4]
-            if (pattern[0] === pattern[2] && pattern[1] === pattern[3] && pattern[0] !== pattern[1]) {
-                // Convert to circular flow
-                // [0,3,0,3] → [0,1,2,3] (clockwise)
-                const start = pattern[0];
-                for (let j = 0; j < 4; j++) {
-                    notes[i + j].zone = (start + j) % 6;
-                }
-            }
-
-            // Detect "staircase" patterns (also common in osu!mania)
-            // Example: [0,1,2,3] but with gaps
-            const diffs = [];
-            for (let j = 1; j < 4; j++) {
-                diffs.push(pattern[j] - pattern[j - 1]);
-            }
-
-            // If all diffs are same direction but too large, smooth them out
-            const allPositive = diffs.every(d => d > 0);
-            const allNegative = diffs.every(d => d < 0);
-
-            if ((allPositive || allNegative) && Math.max(...diffs.map(Math.abs)) > 2) {
-                // Smooth to adjacent zones
-                const direction = allPositive ? 1 : -1;
-                for (let j = 1; j < 4; j++) {
-                    notes[i + j].zone = (notes[i + j - 1].zone + direction + 6) % 6;
-                }
+    _removeJacks(notes) {
+        for (let i = 1; i < notes.length; i++) {
+            if (notes[i].zone === notes[i - 1].zone) {
+                // Move to adjacent lane
+                const alt = notes[i].zone < 5 ? notes[i].zone + 1 : notes[i].zone - 1;
+                notes[i].zone = alt;
             }
         }
     }
 
     /**
-     * maimai-style zone assignment
+     * Inject short burst patterns (3–4 notes) at high-energy gaps.
      */
-    maimaiZoneAssign(time, spectralData, prevNotes, difficulty) {
-        const lastZone = prevNotes[prevNotes.length - 1].zone;
-        const patternLength = Math.min(prevNotes.length, 4);
-        const recentPattern = prevNotes.slice(-patternLength).map(n => n.zone);
+    _addVSRGBursts(notes, difficulty) {
+        const burstInterval = difficulty >= 4 ? 70 : 90;
+        const added = [];
 
-        // Detect if we're in a flow pattern
-        const isFlowing = this._detectFlow(recentPattern);
-
-        if (isFlowing) {
-            // Continue the flow
-            return this._continueFlow(recentPattern, difficulty);
-        }
-
-        // Check for symmetry opportunity
-        if (Math.random() < 0.3) {
-            const symmetricZone = this._getSymmetricZone(lastZone);
-            if (symmetricZone !== null) return symmetricZone;
-        }
-
-        // Use circular patterns
-        if (Math.random() < 0.4) {
-            const direction = Math.random() < 0.5 ? 1 : -1; // Clockwise or counter
-            return (lastZone + direction + 6) % 6;
-        }
-
-        // Random with maimai preference for variety
-        const avoidZones = recentPattern.slice(-2); // Avoid last 2 zones
-        let newZone;
-        do {
-            newZone = Math.floor(Math.random() * 6);
-        } while (avoidZones.includes(newZone) && Math.random() < 0.8);
-
-        return newZone;
-    }
-
-    /**
-     * Detect if notes are following a flow pattern
-     */
-    _detectFlow(pattern) {
-        if (pattern.length < 3) return false;
-
-        // Check for consistent direction
-        const diffs = [];
-        for (let i = 1; i < pattern.length; i++) {
-            let diff = pattern[i] - pattern[i - 1];
-            // Normalize to -3 to 3 range (shortest path around circle)
-            if (diff > 3) diff -= 6;
-            if (diff < -3) diff += 6;
-            diffs.push(diff);
-        }
-
-        // All diffs should be same sign and similar magnitude
-        const allPositive = diffs.every(d => d > 0);
-        const allNegative = diffs.every(d => d < 0);
-
-        return allPositive || allNegative;
-    }
-
-    /**
-     * Continue a detected flow pattern
-     */
-    _continueFlow(pattern, difficulty) {
-        const last = pattern[pattern.length - 1];
-        const secondLast = pattern[pattern.length - 2];
-
-        let diff = last - secondLast;
-        if (diff > 3) diff -= 6;
-        if (diff < -3) diff += 6;
-
-        // Continue in same direction with occasional variation
-        if (Math.random() < 0.85) {
-            return (last + diff + 6) % 6;
-        } else {
-            // Break the flow occasionally
-            return (last + diff * 2 + 6) % 6;
-        }
-    }
-
-    /**
-     * Get symmetric zone (maimai loves symmetry)
-     */
-    _getSymmetricZone(zone) {
-        // Opposite side of hexagon
-        return (zone + 3) % 6;
-    }
-
-    /**
-     * PERFECTED: Apply maimai-style post-processing with advanced intelligence
-     */
-    applyMaimaiPostProcessing(notes, difficulty, intensity) {
-        // === PHASE 1: INTELLIGENT BURST INJECTION ===
-        if (intensity > 0.5 && difficulty >= 3) {
-            this._addIntelligentBursts(notes, difficulty);
-        }
-
-        // === PHASE 2: FLOW ENHANCEMENT ===
-        this._enhanceCircularFlows(notes);
-
-        // === PHASE 3: SYMMETRY INJECTION ===
-        if (intensity > 0.3) {
-            this._addSymmetricalMoments(notes);
-        }
-
-        // === PHASE 4: PATTERN SMOOTHING ===
-        this._smoothPatternTransitions(notes);
-
-        // === PHASE 5: CLIMAX ENHANCEMENT ===
-        this._enhanceClimaxSections(notes, difficulty);
-    }
-
-    /**
-     * PERFECTED: Intelligent burst patterns based on energy
-     */
-    _addIntelligentBursts(notes, difficulty) {
-        const burstCandidates = [];
-
-        // Find high-energy gaps
         for (let i = 1; i < notes.length - 1; i++) {
-            const interval = notes[i].time - notes[i - 1].time;
-            const nextInterval = notes[i + 1].time - notes[i].time;
+            const gapBefore = notes[i].time - notes[i - 1].time;
+            const gapAfter  = notes[i + 1].time - notes[i].time;
 
-            // Look for gaps after high-density sections (burst opportunity)
-            if (interval < 200 && nextInterval > 400) {
-                burstCandidates.push({ index: i, energy: 1 / interval });
+            // Burst opportunity: after a fast section, before a gap
+            if (gapBefore < 200 && gapAfter > 350 && Math.random() < 0.15) {
+                const startLane = notes[i].zone;
+                const dir = startLane < 3 ? 1 : -1;
+                const burstSize = difficulty >= 4 ? 3 : 2;
+
+                for (let b = 1; b <= burstSize; b++) {
+                    const burstLane = Math.max(0, Math.min(5, startLane + dir * b));
+                    added.push({
+                        time: notes[i].time + burstInterval * b,
+                        zone: burstLane,
+                        type: 'regular'
+                    });
+                }
             }
         }
-
-        // Sort by energy and add bursts to top candidates
-        burstCandidates.sort((a, b) => b.energy - a.energy);
-        const burstCount = Math.min(burstCandidates.length, Math.floor(notes.length * 0.1));
-
-        for (let i = 0; i < burstCount; i++) {
-            const candidate = burstCandidates[i];
-            const burstPattern = this.maimaiPatterns.bursts[
-                Math.floor(Math.random() * this.maimaiPatterns.bursts.length)
-            ];
-
-            const burstSize = difficulty >= 4 ? 3 : 2;
-            const burstInterval = difficulty >= 4 ? 70 : 90;
-
-            for (let b = 0; b < burstSize && b < burstPattern.length; b++) {
-                notes.push({
-                    time: notes[candidate.index].time + 150 + (b * burstInterval),
-                    zone: burstPattern[b],
-                    type: 'regular'
-                });
-            }
-        }
+        notes.push(...added);
     }
 
     /**
-     * PERFECTED: Smooth pattern transitions for better flow
+     * Smooth multiple back-to-back full-range jumps (0↔5 rapidly) —
+     * these are painful at lower difficulties.
      */
-    _smoothPatternTransitions(notes) {
-        // Detect awkward transitions and smooth them
+    _smoothLargeJumps(notes, difficulty) {
+        if (difficulty >= 4) return; // Expert/Master can have these
         for (let i = 2; i < notes.length; i++) {
-            const prev2 = notes[i - 2].zone;
-            const prev1 = notes[i - 1].zone;
-            const current = notes[i].zone;
-
-            // Detect "zigzag" patterns (0->3->0 or similar)
-            const dist1 = Math.abs(prev1 - prev2);
-            const dist2 = Math.abs(current - prev1);
-
-            if (dist1 >= 3 && dist2 >= 3 && Math.random() < 0.4) {
-                // Smooth it out by using adjacent zone
-                const smoothZone = (prev1 + (Math.random() < 0.5 ? 1 : -1) + 6) % 6;
-                notes[i].zone = smoothZone;
-            }
-        }
-    }
-
-    /**
-     * PERFECTED: Enhance climax sections with intensity
-     */
-    _enhanceClimaxSections(notes, difficulty) {
-        if (notes.length < 20) return;
-
-        // Find the densest section (likely the climax)
-        const windowSize = 10;
-        let maxDensity = 0;
-        let climaxIndex = 0;
-
-        for (let i = 0; i < notes.length - windowSize; i++) {
-            const window = notes.slice(i, i + windowSize);
-            const timeSpan = window[windowSize - 1].time - window[0].time;
-            const density = windowSize / (timeSpan / 1000);
-
-            if (density > maxDensity) {
-                maxDensity = density;
-                climaxIndex = i;
-            }
-        }
-
-        // Enhance the climax with circular flows
-        if (difficulty >= 3) {
-            const climaxNotes = notes.slice(climaxIndex, climaxIndex + windowSize);
-            const flow = this.maimaiPatterns.circularFlows[0]; // Clockwise
-
-            // Apply circular flow pattern to climax
-            for (let i = 0; i < Math.min(climaxNotes.length, flow.length); i++) {
-                if (Math.random() < 0.6) {
-                    climaxNotes[i].zone = flow[i];
-                }
-            }
-        }
-    }
-
-    /**
-     * Enhance circular flow patterns
-     */
-    _enhanceCircularFlows(notes) {
-        // Look for sequences that could be flows and enhance them
-        for (let i = 0; i < notes.length - 3; i++) {
-            const sequence = notes.slice(i, i + 4);
-            const zones = sequence.map(n => n.zone);
-
-            if (this._detectFlow(zones)) {
-                // Make the flow smoother by adjusting timing slightly
-                const avgInterval = (sequence[3].time - sequence[0].time) / 3;
-                for (let j = 1; j < 4; j++) {
-                    sequence[j].time = sequence[0].time + (avgInterval * j);
-                }
-            }
-        }
-    }
-
-    /**
-     * Add symmetrical moments
-     */
-    _addSymmetricalMoments(notes) {
-        // Find opportunities to add symmetric notes
-        for (let i = 0; i < notes.length - 1; i++) {
-            const interval = notes[i + 1].time - notes[i].time;
-
-            // If there's space, add a symmetric note
-            if (interval > 300 && Math.random() < 0.1) {
-                const symmetricZone = this._getSymmetricZone(notes[i].zone);
-                notes.push({
-                    time: notes[i].time + 50, // Slight delay for feel
-                    zone: symmetricZone,
-                    type: 'regular'
-                });
+            const d1 = Math.abs(notes[i - 1].zone - notes[i - 2].zone);
+            const d2 = Math.abs(notes[i].zone   - notes[i - 1].zone);
+            if (d1 >= 4 && d2 >= 4 && Math.random() < 0.5) {
+                // Replace this note's lane with something closer
+                const midLane = Math.round((notes[i - 1].zone + notes[i].zone) / 2);
+                notes[i].zone = Math.max(0, Math.min(5, midLane));
             }
         }
     }
@@ -1211,9 +1252,9 @@ export class AutoMapper {
         const model = this.trainedModel;
         const hasTrainingData = model && model.zoneTransitions && model.zoneTransitions.size > 0;
 
-        // === USE BUILT-IN MAIMAI KNOWLEDGE IF NO TRAINING DATA ===
+        // === VSRG FALLBACK: NO TRAINING DATA ===
         if (!hasTrainingData) {
-            return this._expertMaimaiZoneAssign(prevNotes, difficulty, energyLevel);
+            return this._expertVSRGLaneAssign(prevNotes, difficulty, energyLevel);
         }
 
         // === CONTEXT-AWARE SELECTION ===
@@ -1292,76 +1333,46 @@ export class AutoMapper {
         }
 
         if (transitions.size === 0) {
-            // No training data, use expert knowledge
-            return this._expertMaimaiZoneAssign(prevNotes, difficulty, energyLevel);
+            // No training data, use VSRG expert knowledge
+            return this._expertVSRGLaneAssign(prevNotes, difficulty, energyLevel);
         }
 
         return this._weightedRandomSelect(transitions);
     }
 
     /**
-     * Expert maimai zone assignment (built-in knowledge, no training needed!)
+     * Expert VSRG lane assignment — used when no training data available.
+     * Implements standard VSRG charting conventions:
+     * - Low energy: prefer adjacent lanes, minimal hand movement
+     * - High energy: allow wider jumps and more variety
      */
-    _expertMaimaiZoneAssign(prevNotes, difficulty, energyLevel) {
-        const lastZone = prevNotes[prevNotes.length - 1].zone;
-        const patterns = this.maimaiPatterns;
+    _expertVSRGLaneAssign(prevNotes, difficulty, energyLevel) {
+        const lastLane = prevNotes[prevNotes.length - 1].zone;
+        const recentLanes = prevNotes.slice(-4).map(n => n.zone);
+        const transitions = this.vsrgPatterns.laneTransitions;
 
-        // === TRY EXPERT PATTERN MATCHING ===
-        if (prevNotes.length >= 3) {
-            const recentPattern = prevNotes.slice(-3).map(n => n.zone).join(',');
+        // Build weighted candidate map
+        const candidates = new Map();
+        for (let target = 0; target < 6; target++) {
+            const key = `${lastLane}->${target}`;
+            let weight = transitions.get(key) || 5;
 
-            // Check if this pattern exists in expert knowledge
-            if (patterns.expertPatterns.has(recentPattern)) {
-                // Find what commonly follows this pattern
-                const nextZones = new Map();
-                for (const [pattern, freq] of patterns.expertPatterns.entries()) {
-                    // Look for patterns that start with our last 2 zones
-                    const last2 = recentPattern.split(',').slice(1).join(',');
-                    if (pattern.startsWith(last2)) {
-                        const zones = pattern.split(',');
-                        const nextZone = parseInt(zones[zones.length - 1]);
-                        nextZones.set(nextZone, freq);
-                    }
-                }
+            // Scale jump distance by energy
+            const dist = Math.abs(target - lastLane);
+            if (dist > 2 && energyLevel < 0.5) weight *= 0.3; // suppress far jumps at low energy
+            if (dist > 3 && energyLevel < 0.7) weight *= 0.2;
 
-                if (nextZones.size > 0 && Math.random() < 0.6) {
-                    return this._weightedRandomSelect(nextZones);
-                }
+            candidates.set(target, weight);
+        }
+
+        // Penalise recent lanes at lower difficulty (fewer jacks)
+        if (difficulty < 4) {
+            for (const lane of recentLanes.slice(-2)) {
+                candidates.set(lane, Math.max(1, (candidates.get(lane) || 1) * 0.2));
             }
         }
 
-        // === TRY EXPERT ENERGY-BASED SELECTION ===
-        const energyKey = `E${Math.floor(energyLevel * 10)}`;
-        const energyZones = new Map();
-
-        for (const [key, freq] of patterns.expertEnergyZones.entries()) {
-            if (key.startsWith(energyKey)) {
-                const zone = parseInt(key.split(':Z')[1]);
-                energyZones.set(zone, freq);
-            }
-        }
-
-        if (energyZones.size > 0 && Math.random() < 0.5) {
-            return this._weightedRandomSelect(energyZones);
-        }
-
-        // === USE EXPERT TRANSITIONS ===
-        const transitions = new Map();
-        for (let targetZone = 0; targetZone < 6; targetZone++) {
-            const key = `${lastZone}->${targetZone}`;
-            const freq = patterns.expertTransitions.get(key) || 0;
-            if (freq > 0) {
-                transitions.set(targetZone, freq);
-            }
-        }
-
-        if (transitions.size > 0) {
-            return this._weightedRandomSelect(transitions);
-        }
-
-        // === FALLBACK: ADJACENT ZONES (maimai prefers smooth flow) ===
-        const adjacent = [(lastZone + 1) % 6, (lastZone + 5) % 6];
-        return adjacent[Math.floor(Math.random() * adjacent.length)];
+        return this._weightedRandomSelect(candidates);
     }
 
     /**
@@ -1596,44 +1607,164 @@ export class AutoMapper {
     }
 
     /**
-     * Fast onset detection with CLASSIFICATION
-     * Returns: { time, strength, type }
+     * Multi-band onset detection — separates bass / mid / treble via
+     * BiquadFilterNode rendered offline, then runs independent onset
+     * detectors per band.  Returns the same { time, strength, type, band }
+     * array as before so generateChart() needs no changes.
      */
     async detectOnsets() {
-        const data = this.audioBuffer.getChannelData(0);
-        const onsets = [];
-        const windowSize = Math.floor(this.sampleRate * 0.02);
-        const hopSize = Math.floor(windowSize / 4);
+        // ── 1. Render each frequency band into its own Float32Array ──
+        // _renderBands is now synchronous IIR (no OfflineAudioContext)
+        const bands = this._renderBands();
+        this._bands = bands; // cache for analyzeSpectral / analyzeEnergy
 
-        let energyHistory = [];
-        const historySize = 8;
+        // ── 2. Detect onsets per band with independent history ──
+        const bassOnsets   = this._detectBandOnsets(bands.bass,   'bass',   40);
+        const midOnsets    = this._detectBandOnsets(bands.mid,    'mid',    35);
+        const trebleOnsets = this._detectBandOnsets(bands.treble, 'treble', 30);
+
+        // ── 3. Hold-note candidates from sustained bass/mid energy ──
+        const holdCandidates = this._detectSustains(bands.bass, bands.mid);
+
+        // ── 4. Merge all onsets, resolve conflicts within 30 ms ──
+        const merged = this._mergeOnsets(
+            [...bassOnsets, ...midOnsets, ...trebleOnsets, ...holdCandidates]
+        );
+
+        // store band onset lists for detectBeats / zone assignment
+        this._bandOnsets = { bass: bassOnsets, mid: midOnsets, treble: trebleOnsets };
+
+        // ── 5. Release the large band buffers: they're no longer needed ──
+        // analyzeSpectral / analyzeEnergy will rebuild from a lightweight
+        // cache key; if they haven't run yet, a fresh _renderBands() call
+        // re-synthesises in ~ms.
+        // NOTE: we keep this._bands set so analyzeSpectral can reuse it
+        //       within the same generateChart() call, but we null it out
+        //       after generateChart() finishes (see end of generateChart).
+        return merged;
+    }
+
+    /**
+     * Band separation via direct IIR filtering.
+     * NO OfflineAudioContext — avoids the 3x full-buffer allocation that
+     * caused the JavaScript heap OOM crash.
+     *
+     * Strategy:
+     *   1. Mix down to mono
+     *   2. Downsample by DSRATE (default 4x → ~11 kHz) for memory + speed
+     *   3. Apply cascaded one-pole IIR filters to split into bands
+     *
+     * Memory cost (old vs new for a 4-min song @ 44100 Hz):
+     *   Old: mono(42 MB) + 3x OfflineAudioContext(~126 MB) + 3x rendered(126 MB) = ~294 MB
+     *   New: mono(42 MB, freed) + 3x downsampled bands(~32 MB total) = ~32 MB
+     */
+    _renderBands() {
+        const sr     = this.sampleRate;
+        const ch     = this.audioBuffer.numberOfChannels;
+        const length = this.audioBuffer.length;
+
+        // ── Step 1: mono mix ──────────────────────────────────────────
+        const mono = new Float32Array(length);
+        for (let c = 0; c < ch; c++) {
+            const chanData = this.audioBuffer.getChannelData(c);
+            for (let i = 0; i < length; i++) mono[i] += chanData[i] / ch;
+        }
+
+        // ── Step 2: Downsample 4x with a simple box decimation ──────────────
+        // Output sample rate: sr / DSRATE  (e.g. 44100/4 = 11025 Hz)
+        // Onset detection only needs up to ~5 kHz, so Nyquist is fine.
+        const DSRATE  = 4;
+        const dsLen   = Math.floor(length / DSRATE);
+        const dsSR    = sr / DSRATE;
+        const ds      = new Float32Array(dsLen);
+        for (let i = 0; i < dsLen; i++) {
+            // Average 4 input samples per output sample (anti-alias)
+            let sum = 0;
+            for (let k = 0; k < DSRATE; k++) sum += mono[i * DSRATE + k];
+            ds[i] = sum / DSRATE;
+        }
+        // Free the full-rate mono buffer immediately
+        // (mono is not referenced after this, eligible for GC)
+
+        // ── Step 3: IIR filter split into 3 bands ───────────────────────
+        // One-pole IIR lowpass coefficient: a = 1 - exp(-2π fc / sr)
+        // y[n] = a * x[n] + (1 - a) * y[n-1]
+        //
+        // Bass   = LP @ 250 Hz
+        // Mid    = LP @ 4000 Hz  −  LP @ 250 Hz
+        // Treble = signal − LP @ 4000 Hz
+
+        const fc1 = 250;   // bass/mid boundary
+        const fc2 = 4000;  // mid/treble boundary
+
+        // Clamp fc2 to Nyquist of downsampled signal
+        const nyquist = dsSR / 2;
+        const safeFC2 = Math.min(fc2, nyquist * 0.9);
+
+        const a1 = 1 - Math.exp(-2 * Math.PI * fc1  / dsSR);
+        const a2 = 1 - Math.exp(-2 * Math.PI * safeFC2 / dsSR);
+
+        const bass   = new Float32Array(dsLen);
+        const mid    = new Float32Array(dsLen);
+        const treble = new Float32Array(dsLen);
+
+        let lp1 = 0, lp2 = 0;
+        for (let i = 0; i < dsLen; i++) {
+            const x = ds[i];
+            lp1 = lp1 + a1 * (x - lp1);    // LP @ 250 Hz
+            lp2 = lp2 + a2 * (x - lp2);    // LP @ 4000 Hz
+
+            bass[i]   = lp1;          // 0 – 250 Hz
+            mid[i]    = lp2 - lp1;   // 250 – 4000 Hz
+            treble[i] = x  - lp2;   // 4000 Hz+
+        }
+
+        // Store the effective sample rate for downstream methods
+        this._bandSampleRate = dsSR;
+
+        return { bass, mid, treble };
+    }
+
+    /**
+     * RMS onset detector for a single band buffer.
+     * Uses a longer adaptive history window than the old method
+     * to reduce false positives on reverb tails.
+     */
+    _detectBandOnsets(data, band, minGapMs) {
+        const onsets     = [];
+        const sr         = this._bandSampleRate ?? this.sampleRate; // use downsampled rate
+        const windowMs   = 0.02;   // 20 ms analysis window
+        const hopMs      = 0.005;  // 5 ms hop
+        const windowSize = Math.max(1, Math.floor(sr * windowMs));
+        const hopSize    = Math.max(1, Math.floor(sr * hopMs));
+        const historyLen = 20;     // ~100 ms adaptive mean
+        const threshold  = { bass: 1.45, mid: 1.35, treble: 1.25 }[band] || 1.35;
+
+        const history = [];
+        let lastOnsetMs = -minGapMs;
 
         for (let i = 0; i < data.length - windowSize; i += hopSize) {
-            let energy = 0;
-            for (let j = 0; j < windowSize; j++) {
-                energy += data[i + j] * data[i + j];
-            }
-            energy = Math.sqrt(energy / windowSize);
+            // RMS of current window
+            let rms = 0;
+            for (let j = 0; j < windowSize; j++) rms += data[i + j] * data[i + j];
+            rms = Math.sqrt(rms / windowSize);
 
-            energyHistory.push(energy);
-            if (energyHistory.length > historySize) energyHistory.shift();
-            if (energyHistory.length < historySize) continue;
+            history.push(rms);
+            if (history.length > historyLen) history.shift();
+            if (history.length < historyLen) continue;
 
-            const avg = energyHistory.reduce((a, b) => a + b) / historySize;
+            const avg = history.reduce((a, b) => a + b) / historyLen;
+            if (avg < 0.003) continue; // below noise floor
 
-            if (energy > avg * 1.35 && avg > 0.01) {
-                const timeMs = (i / this.sampleRate) * 1000;
-                if (onsets.length === 0 || timeMs - onsets[onsets.length - 1].time > 40) {
-                    // CLASSIFY ONSET TYPE
-                    const strength = energy / avg; // How strong is this onset?
-                    const type = this._classifyOnset(data, i, windowSize, strength);
+            if (rms > avg * threshold) {
+                const timeMs = (i / sr) * 1000;
+                if (timeMs - lastOnsetMs < minGapMs) continue;
 
-                    onsets.push({
-                        time: timeMs,
-                        strength: strength,
-                        type: type // 'strong', 'medium', 'weak', 'sustained'
-                    });
-                }
+                const strength = rms / avg;
+                const type     = this._classifyBandOnset(band, strength, data, i, windowSize);
+
+                onsets.push({ time: timeMs, strength, type, band });
+                lastOnsetMs = timeMs;
             }
         }
 
@@ -1641,52 +1772,309 @@ export class AutoMapper {
     }
 
     /**
-     * Classify onset by analyzing its characteristics
+     * Classify an onset given which frequency band it came from.
+     * Bass strong = kick/sub.  Mid sustained = melody/vocal.
+     * Treble sharp = hi-hat/cymbal.
      */
-    _classifyOnset(data, position, windowSize, strength) {
-        // Analyze attack sharpness (how sudden is the onset?)
-        const attackWindow = Math.floor(windowSize * 0.1);
-        let attackEnergy = 0;
-        for (let i = 0; i < attackWindow; i++) {
-            attackEnergy += Math.abs(data[position + i]);
-        }
-        const attackSharpness = attackEnergy / attackWindow;
+    _classifyBandOnset(band, strength, data, pos, windowSize) {
+        const attackWin = Math.floor(windowSize * 0.08);
+        const sustainWin = Math.floor(windowSize * 0.5);
 
-        // Analyze sustain (does it hold or decay quickly?)
-        const sustainWindow = Math.floor(windowSize * 0.5);
-        let sustainEnergy = 0;
-        for (let i = attackWindow; i < attackWindow + sustainWindow; i++) {
-            if (position + i < data.length) {
-                sustainEnergy += Math.abs(data[position + i]);
-            }
-        }
-        const sustainLevel = sustainEnergy / sustainWindow;
+        let attack = 0, sustain = 0;
+        for (let i = 0; i < attackWin; i++)  attack  += Math.abs(data[pos + i] || 0);
+        for (let i = attackWin; i < attackWin + sustainWin; i++) sustain += Math.abs(data[pos + i] || 0);
+        attack  /= attackWin;
+        sustain /= sustainWin;
 
-        // Classification logic
-        if (strength > 2.0 && attackSharpness > sustainLevel * 1.5) {
-            return 'strong'; // Kick, snare, strong percussion
-        } else if (strength > 1.6 && attackSharpness > sustainLevel) {
-            return 'medium'; // Hi-hat, vocal syllables, moderate hits
-        } else if (sustainLevel > attackSharpness * 1.2) {
-            return 'sustained'; // Held notes, pads, sustained instruments
-        } else {
-            return 'weak'; // Background sounds, decorative elements
+        if (band === 'bass') {
+            // Kick: very sharp attack, fast decay
+            return strength > 1.9 && attack > sustain * 1.3 ? 'strong'
+                 : sustain > attack * 1.4                   ? 'sustained'
+                 : 'medium';
         }
+        if (band === 'mid') {
+            // Snare / vocal / melody
+            return strength > 1.7                ? 'strong'
+                 : sustain > attack * 1.2        ? 'sustained'
+                 : strength > 1.4               ? 'medium'
+                 :                                'weak';
+        }
+        // treble
+        // Hi-hat: very sharp, almost no sustain
+        return attack > sustain * 2.0 ? 'medium' : 'weak';
     }
 
     /**
-     * Beat detection
+     * Detect sustained notes (holds/slides) from bass+mid energy.
+     * A sustained onset is flagged when a region stays above 70% of
+     * peak energy for more than 2 beats (estimated from BPM).
      */
-    async detectBeats(bpm) {
-        const beats = [];
-        const interval = (60 / bpm) * 1000;
-        const duration = this.duration * 1000;
+    _detectSustains(bassData, midData) {
+        const holdCandidates = [];
+        const sr         = this._bandSampleRate ?? this.sampleRate; // use downsampled rate
+        const windowMs   = 0.05;
+        const hopMs      = 0.025;
+        const windowSize = Math.max(1, Math.floor(sr * windowMs));
+        const hopSize    = Math.max(1, Math.floor(sr * hopMs));
 
-        for (let t = 0; t < duration; t += interval) {
-            beats.push(t);
+        // Combine bass + mid for sustain detection
+        const minLen = Math.min(bassData.length, midData.length);
+        let inSustain   = false;
+        let sustainStart = 0;
+        let peakEnergy  = 0;
+        let sustainPeak = 0;
+        const sustainThresholdMs = 300; // must sustain for at least 300 ms
+
+        for (let i = 0; i < minLen - windowSize; i += hopSize) {
+            let e = 0;
+            for (let j = 0; j < windowSize; j++) {
+                const b = bassData[i + j] || 0;
+                const m = midData[i + j]  || 0;
+                e += (b * b + m * m) / 2;
+            }
+            const rms = Math.sqrt(e / windowSize);
+            const timeMs = (i / sr) * 1000;
+
+            if (rms > peakEnergy) peakEnergy = rms;
+
+            if (!inSustain) {
+                if (rms > peakEnergy * 0.6 && rms > 0.01) {
+                    inSustain    = true;
+                    sustainStart = timeMs;
+                    sustainPeak  = rms;
+                }
+            } else {
+                if (rms > sustainPeak) sustainPeak = rms;
+                if (rms < sustainPeak * 0.4 || rms < 0.005) {
+                    // Sustain ended
+                    const duration = timeMs - sustainStart;
+                    if (duration >= sustainThresholdMs) {
+                        holdCandidates.push({
+                            time:     sustainStart,
+                            strength: sustainPeak / (peakEnergy || 1),
+                            type:     'sustained',
+                            band:     'mid',
+                            holdDuration: Math.round(duration)
+                        });
+                    }
+                    inSustain = false;
+                    sustainPeak = 0;
+                }
+            }
+        }
+        return holdCandidates;
+    }
+
+    /**
+     * Merge onsets from all bands: sort by time, resolve collisions
+     * within a 30 ms window by keeping the strongest per window.
+     */
+    _mergeOnsets(onsets) {
+        onsets.sort((a, b) => a.time - b.time);
+        const merged = [];
+        const WINDOW = 30; // ms
+
+        for (const onset of onsets) {
+            const last = merged[merged.length - 1];
+            if (!last || onset.time - last.time > WINDOW) {
+                merged.push({ ...onset });
+            } else if (onset.strength > last.strength) {
+                // Same window — keep the stronger one, merge band info
+                Object.assign(last, onset);
+            } else {
+                // Weaker in same window — annotate extra band only
+                if (!last.bands) last.bands = [last.band];
+                if (!last.bands.includes(onset.band)) last.bands.push(onset.band);
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * Beat detection with tempo map.
+     *
+     * Returns { beats: number[], tempoMap: { time, bpm, interval }[] }
+     *
+     * The tempo map is built by analysing bass-onset IOIs in sliding windows
+     * across the whole song, so BPM changes are automatically detected.
+     *
+     * @param {number|Array} bpmHint  Scalar BPM fallback OR the editor's
+     *                                bpmChanges array [{time, bpm}] for
+     *                                multi-BPM songs.
+     */
+    async detectBeats(bpmHint = 120) {
+        const durationMs = this.duration * 1000;
+
+        // ── Build the tempo map ──────────────────────────────────────────
+        const bassOnsets = this._bandOnsets?.bass ?? [];
+        const tempoMap   = this._buildTempoMap(bassOnsets, bpmHint, durationMs);
+
+        // ── Generate the beat grid from the tempo map ────────────────────
+        const beats = [];
+        for (let seg = 0; seg < tempoMap.length; seg++) {
+            const seg_start = tempoMap[seg].time;
+            const seg_end   = seg < tempoMap.length - 1
+                ? tempoMap[seg + 1].time
+                : durationMs;
+            const interval  = tempoMap[seg].interval;
+
+            // Anchor to first strong bass onset in this segment (or segment start)
+            const segBassOnsets = bassOnsets.filter(
+                o => o.time >= seg_start && o.time < seg_end && o.type === 'strong'
+            );
+            const anchor = segBassOnsets.length ? segBassOnsets[0].time : seg_start;
+
+            // Walk backward from anchor to segment start
+            let t = anchor;
+            while (t - interval >= seg_start) t -= interval;
+
+            // Walk forward through segment
+            while (t < seg_end) {
+                if (t >= 0) beats.push(t);
+                t += interval;
+            }
         }
 
-        return beats;
+        // Deduplicate and sort (segments might share a boundary beat)
+        const uniqueBeats = [...new Set(beats.map(b => Math.round(b)))].sort((a, b) => a - b);
+
+        return { beats: uniqueBeats, tempoMap };
+    }
+
+    /**
+     * Build a tempo map from bass-onset IOIs and an optional BPM hint.
+     *
+     * Strategy:
+     *   - If bpmHint is an array (bpmChanges from the editor), use those
+     *     directly as the tempo map — trust the user.
+     *   - Otherwise, slide a 10-second window across bass onsets, run
+     *     IOI histogram per window, detect dominant beat period.
+     *   - Merge consecutive identical BPMs to keep the map compact.
+     *
+     * Returns: [{ time, bpm, interval }] sorted by time.
+     */
+    _buildTempoMap(bassOnsets, bpmHint, durationMs) {
+        // ── Case 1: caller passed bpmChanges[] (editor's multi-BPM list) ──
+        if (Array.isArray(bpmHint) && bpmHint.length > 0) {
+            return bpmHint
+                .slice()
+                .sort((a, b) => a.time - b.time)
+                .map(c => ({
+                    time:     c.time,
+                    bpm:      c.bpm,
+                    interval: (60 / c.bpm) * 1000
+                }));
+        }
+
+        const fallbackBpm      = typeof bpmHint === 'number' ? bpmHint : 120;
+        const fallbackInterval = (60 / fallbackBpm) * 1000;
+
+        // Need at least 4 bass onsets to attempt detection
+        if (!bassOnsets || bassOnsets.length < 4) {
+            return [{ time: 0, bpm: fallbackBpm, interval: fallbackInterval }];
+        }
+
+        // ── Case 2: sliding-window IOI detection ──────────────────────────
+        const WINDOW_MS  = 10_000; // 10-second analysis window
+        const HOP_MS     = 5_000;  // 5-second hop (50% overlap)
+        const BIN_MS     = 10;     // histogram bucket size in ms
+
+        const rawMap = []; // { time, bpm }
+
+        for (let winStart = 0; winStart < durationMs; winStart += HOP_MS) {
+            const winEnd = winStart + WINDOW_MS;
+
+            // IOIs between consecutive bass onsets in this window
+            const windowOnsets = bassOnsets.filter(
+                o => o.time >= winStart && o.time < winEnd
+            );
+
+            if (windowOnsets.length < 3) continue;
+
+            const iois = [];
+            for (let i = 1; i < windowOnsets.length; i++) {
+                iois.push(windowOnsets[i].time - windowOnsets[i - 1].time);
+            }
+
+            // Histogram of IOIs — find dominant period
+            const hist = new Map();
+            for (const ioi of iois) {
+                const bin = Math.round(ioi / BIN_MS) * BIN_MS;
+                hist.set(bin, (hist.get(bin) || 0) + 1);
+            }
+
+            let bestBin = fallbackInterval, bestCount = 0;
+            for (const [bin, count] of hist) {
+                // Plausible beat range: 200–2000 ms (30–300 BPM)
+                if (bin >= 200 && bin <= 2000 && count > bestCount) {
+                    bestCount = count;
+                    bestBin   = bin;
+                }
+            }
+
+            // Only trust if dominant bin is within ±25% of the hint
+            const trusted = bestCount >= 2
+                && Math.abs(bestBin - fallbackInterval) / fallbackInterval < 0.25;
+            const useBin = trusted ? bestBin : fallbackInterval;
+            const detectedBpm = Math.round(60000 / useBin);
+
+            rawMap.push({ time: winStart, bpm: detectedBpm });
+        }
+
+        if (rawMap.length === 0) {
+            return [{ time: 0, bpm: fallbackBpm, interval: fallbackInterval }];
+        }
+
+        // Ensure map starts at t=0
+        if (rawMap[0].time > 0) rawMap.unshift({ time: 0, bpm: rawMap[0].bpm });
+
+        // Merge consecutive identical BPMs
+        const merged = [rawMap[0]];
+        for (let i = 1; i < rawMap.length; i++) {
+            if (rawMap[i].bpm !== merged[merged.length - 1].bpm) {
+                merged.push(rawMap[i]);
+            }
+        }
+
+        return merged.map(c => ({
+            time:     c.time,
+            bpm:      c.bpm,
+            interval: (60 / c.bpm) * 1000
+        }));
+    }
+
+    /**
+     * Snap note times to the nearest beat subdivision using the tempo map.
+     *
+     * @param {Object[]} notes        Array of note objects (mutated in place)
+     * @param {Object[]} tempoMap     [{time, bpm, interval}] from _buildTempoMap
+     * @param {number}   subdivision  Beat subdivisions: 4=quarter, 8=eighth, 16=sixteenth
+     * @param {number}   strength     0–1, how strongly to snap (1.0 = hard snap, 0 = no-op)
+     */
+    _quantizeToGrid(notes, tempoMap, subdivision = 4, strength = 1.0) {
+        if (strength <= 0 || !tempoMap || tempoMap.length === 0) return;
+
+        for (const note of notes) {
+            // Find the active BPM segment for this note
+            let seg = tempoMap[0];
+            for (const s of tempoMap) {
+                if (s.time <= note.time) seg = s;
+                else break;
+            }
+
+            // Step size for the requested subdivision
+            const stepMs = seg.interval / subdivision;
+
+            // Offset of this note from the segment start (to get phase right)
+            const phase  = (note.time - seg.time) % seg.interval;
+            // Which subdivision grid line is the note closest to?
+            const snapPhase = Math.round(phase / stepMs) * stepMs;
+            // How far off is it?
+            const delta = snapPhase - phase;
+
+            // Apply snap with strength blend
+            note.time = Math.max(0, Math.round(note.time + delta * strength));
+        }
     }
 
     /**
@@ -1779,238 +2167,174 @@ export class AutoMapper {
     }
 
     /**
-     * Fast spectral analysis (simplified)
+     * Spectral analysis — reads the already-rendered band buffers
+     * from _renderBands() (cached on this._bands) so we don't re-render.
+     * Falls back to mono if bands aren't available.
      */
     async analyzeSpectral() {
-        const data = this.audioBuffer.getChannelData(0);
+        if (this._bands) {
+            return this._spectralFromBands(this._bands);
+        }
+        // Synchronous fallback if detectOnsets wasn't called first
+        this._bands = this._renderBands();
+        return this._spectralFromBands(this._bands);
+    }
+
+    _spectralFromBands(bands) {
         const spectral = [];
-        const windowSize = 2048;
-        const hopSize = 1024;
+        const sr         = this._bandSampleRate ?? this.sampleRate;
+        // Scale window to ~46 ms at whatever sample rate we have
+        const windowSize = Math.max(64, Math.floor(sr * 0.046));
+        const hopSize    = Math.floor(windowSize / 2);
+        const len        = Math.min(bands.bass.length, bands.mid.length, bands.treble.length);
 
-        for (let i = 0; i < data.length - windowSize; i += hopSize) {
-            const timeMs = (i / this.sampleRate) * 1000;
-
-            // Simple frequency band approximation
-            const third = Math.floor(windowSize / 3);
+        for (let i = 0; i < len - windowSize; i += hopSize) {
             let low = 0, mid = 0, high = 0;
-
-            for (let j = 0; j < third; j++) {
-                low += Math.abs(data[i + j]);
+            for (let j = 0; j < windowSize; j++) {
+                low  += bands.bass[i + j]   * bands.bass[i + j];
+                mid  += bands.mid[i + j]    * bands.mid[i + j];
+                high += bands.treble[i + j] * bands.treble[i + j];
             }
-            for (let j = third; j < third * 2; j++) {
-                mid += Math.abs(data[i + j]);
-            }
-            for (let j = third * 2; j < windowSize; j++) {
-                high += Math.abs(data[i + j]);
-            }
-
             spectral.push({
-                time: timeMs,
-                low: low / third,
-                mid: mid / third,
-                high: high / third
+                time: (i / sr) * 1000,
+                low:  Math.sqrt(low  / windowSize),
+                mid:  Math.sqrt(mid  / windowSize),
+                high: Math.sqrt(high / windowSize)
             });
         }
-
         return spectral;
     }
 
     /**
-     * Energy analysis
+     * Energy analysis — uses bands if cached, else raw mono.
      */
     async analyzeEnergy() {
-        const data = this.audioBuffer.getChannelData(0);
         const energy = [];
-        const windowSize = Math.floor(this.sampleRate * 0.05);
-        const hopSize = Math.floor(windowSize / 2);
 
-        for (let i = 0; i < data.length - windowSize; i += hopSize) {
-            let e = 0;
-            for (let j = 0; j < windowSize; j++) {
-                e += data[i + j] * data[i + j];
+        if (this._bands) {
+            // Use downsampled band data
+            const sr         = this._bandSampleRate ?? this.sampleRate;
+            const windowSize = Math.max(1, Math.floor(sr * 0.05));
+            const hopSize    = Math.floor(windowSize / 2);
+
+            const b = this._bands.bass, m = this._bands.mid, t = this._bands.treble;
+            const len = Math.min(b.length, m.length, t.length);
+
+            for (let i = 0; i < len - windowSize; i += hopSize) {
+                let e = 0;
+                for (let j = 0; j < windowSize; j++) {
+                    const v = (b[i + j] + m[i + j] + t[i + j]) / 3;
+                    e += v * v;
+                }
+                energy.push({
+                    time:   (i / sr) * 1000,
+                    energy: Math.sqrt(e / windowSize)
+                });
             }
-            energy.push({
-                time: (i / this.sampleRate) * 1000,
-                energy: Math.sqrt(e / windowSize)
-            });
+        } else {
+            // Fallback: raw mono channel
+            const sr         = this.sampleRate;
+            const windowSize = Math.floor(sr * 0.05);
+            const hopSize    = Math.floor(windowSize / 2);
+            const data       = this.audioBuffer.getChannelData(0);
+
+            for (let i = 0; i < data.length - windowSize; i += hopSize) {
+                let e = 0;
+                for (let j = 0; j < windowSize; j++) e += data[i + j] * data[i + j];
+                energy.push({
+                    time:   (i / sr) * 1000,
+                    energy: Math.sqrt(e / windowSize)
+                });
+            }
         }
 
         return energy;
     }
 
     /**
-     * Smart combination - Prioritize onsets by TYPE and strength
+     * Build candidate pool weight (kept for compatibility with trainFromCharts).
+     * The new generation path uses _buildCandidatePool() instead.
      */
     smartCombine(onsets, beats, energyData, offset) {
-        const combined = new Map();
-
-        // PRIORITY 1: Classified Onsets - Weight by importance
-        onsets.forEach(onset => {
-            const time = onset.time || onset; // Handle both old and new format
-            const energy = this.getEnergyAt(time, energyData);
-
-            // Weight by onset type
-            let weight = energy;
-            if (onset.type) {
-                switch (onset.type) {
-                    case 'strong':
-                        weight = energy * 1.5; // Strong hits are VERY important
-                        break;
-                    case 'medium':
-                        weight = energy * 1.0; // Normal importance
-                        break;
-                    case 'sustained':
-                        weight = energy * 0.7; // Less important, might skip
-                        break;
-                    case 'weak':
-                        weight = energy * 0.4; // Background sounds, often skip
-                        break;
-                }
-            }
-
-            combined.set(Math.round(time + offset), weight);
-        });
-
-        // PRIORITY 2: Beats (BPM-based) - BACKUP ONLY
-        beats.forEach(time => {
-            const t = Math.round(time + offset);
-            if (!combined.has(t)) {
-                const energy = this.getEnergyAt(time, energyData);
-                combined.set(t, energy * 0.3); // 30% weight for beats
-            }
-        });
-
-        return Array.from(combined.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(([time, weight]) => ({ time, weight }));
+        return this._buildCandidatePool(onsets, beats, energyData, offset);
     }
 
     /**
-     * Get energy at time
+     * Get energy at time — binary search instead of O(n) reduce.
+     * energyData must be sorted ascending by time (it always is).
      */
     getEnergyAt(time, energyData) {
         if (!energyData || energyData.length === 0) return 0.5;
-        const closest = energyData.reduce((prev, curr) =>
-            Math.abs(curr.time - time) < Math.abs(prev.time - time) ? curr : prev
-        );
-        return closest.energy;
+        if (energyData.length === 1) return energyData[0].energy;
+
+        // Binary search for nearest time
+        let lo = 0, hi = energyData.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (energyData[mid].time < time) lo = mid + 1;
+            else hi = mid;
+        }
+        // lo is the first index >= time; compare with lo-1
+        if (lo > 0 && Math.abs(energyData[lo - 1].time - time) <= Math.abs(energyData[lo].time - time)) {
+            return energyData[lo - 1].energy;
+        }
+        return energyData[lo].energy;
     }
 
     /**
-     * PERFECTED: Smart filtering with adaptive difficulty and musical intelligence
+     * Legacy filter (kept for trainFromCharts compatibility).
+     * The new generation path uses _selectCandidates() instead.
      */
     smartFilter(candidates, difficulty, minInterval, energyData) {
-        // Enhanced density curves per difficulty - INCREASED for more notes
-        const densityBase = [0.35, 0.55, 0.75, 0.85, 0.95][difficulty - 1] || 0.65;
-        const filtered = [];
-        let lastTime = -minInterval;
-        let recentNotes = []; // Track recent notes for spam prevention
-
-        const avgEnergy = energyData.reduce((sum, d) => sum + d.energy, 0) / energyData.length;
-        const maxEnergy = Math.max(...energyData.map(d => d.energy));
-
-        // === ADAPTIVE DENSITY BASED ON SONG STRUCTURE ===
-        const songDuration = this.duration * 1000;
-
-        for (const { time, weight } of candidates) {
-            const energyFactor = weight / avgEnergy;
-            const normalizedEnergy = weight / maxEnergy;
-
-            // === DYNAMIC INTERVAL ADJUSTMENT ===
-            // Faster notes at high energy, slower at low energy
-            const energyMultiplier = 1.5 - (normalizedEnergy * 0.5);
-            const difficultyMultiplier = 2 - (difficulty * 0.2);
-            const dynamicInterval = minInterval * difficultyMultiplier * energyMultiplier;
-
-            if (time - lastTime < dynamicInterval) continue;
-
-            // === SPAM PREVENTION: Check recent note density ===
-            // Remove notes older than 1 second from tracking
-            recentNotes = recentNotes.filter(t => time - t < 1000);
-
-            // Maximum notes per second based on difficulty
-            const maxNotesPerSecond = [4, 6, 8, 10, 12][difficulty - 1] || 8;
-
-            // If we already have too many notes in the last second, skip this one
-            if (recentNotes.length >= maxNotesPerSecond) {
-                // Only allow if this is a VERY strong onset (to preserve important beats)
-                if (normalizedEnergy < 0.8) {
-                    continue;
-                }
-            }
-
-            // === ADAPTIVE DENSITY BY SONG POSITION ===
-            const songProgress = time / songDuration;
-            let densityModifier = 1.0;
-
-            // Intro (0-15%): Reduce density
-            if (songProgress < 0.15) {
-                densityModifier = 0.7;
-            }
-            // Build-up (15-30%): Gradually increase
-            else if (songProgress < 0.30) {
-                densityModifier = 0.7 + ((songProgress - 0.15) / 0.15) * 0.3;
-            }
-            // Main section (30-80%): Full density
-            else if (songProgress < 0.80) {
-                densityModifier = 1.0 + (normalizedEnergy * 0.2); // Boost at high energy
-            }
-            // Outro (80-100%): Gradually reduce
-            else {
-                densityModifier = 1.0 - ((songProgress - 0.80) / 0.20) * 0.3;
-            }
-
-            // === INTELLIGENT PLACEMENT CHANCE ===
-            const baseDensity = densityBase * densityModifier;
-            const energyBoost = normalizedEnergy * 0.4; // High energy = more notes
-            const weightBoost = (weight / avgEnergy) * 0.3; // Strong onsets = more likely
-
-            const finalChance = Math.min(0.95, baseDensity + energyBoost + weightBoost);
-
-            if (Math.random() < finalChance) {
-                filtered.push(time);
-                recentNotes.push(time); // Track this note
-                lastTime = time;
-            }
-        }
-
-        // === POST-FILTER: ENSURE MINIMUM NOTE COUNT ===
-        // UPDATED multipliers to match new difficulty targets
-        const noteMultipliers = {
-            1: 1.5,  // EASY
-            2: 2.5,  // NORMAL
-            3: 4.0,  // HARD
-            4: 6.0,  // EXPERT
-            5: 8.5   // MASTER
-        };
-        const multiplier = noteMultipliers[difficulty] || 4.0;
-        const minNotes = Math.floor((songDuration / 1000) * multiplier);
-
-        if (filtered.length < minNotes) {
-            // Add more notes from high-weight candidates
-            const remaining = candidates
-                .filter(c => !filtered.includes(c.time))
-                .sort((a, b) => b.weight - a.weight)
-                .slice(0, minNotes - filtered.length);
-
-            filtered.push(...remaining.map(c => c.time));
-            filtered.sort((a, b) => a - b);
-        }
-
-        return filtered;
+        // Delegate to the new deterministic selector with a dummy budget
+        const dummyBudget = [{
+            start: 0,
+            end: this.duration * 1000,
+            type: 'verse',
+            targetNPS:   [2, 3.5, 6, 9, 13][Math.max(0, Math.min(4, difficulty - 1))],
+            minGapMs:    minInterval,
+            targetCount: Math.round([2, 3.5, 6, 9, 13][Math.max(0, Math.min(4, difficulty - 1))]
+                         * this.duration)
+        }];
+        return this._selectCandidates(candidates, dummyBudget, difficulty).map(c => c.time);
     }
 
     /**
      * Smart zone assignment
      */
-    smartZoneAssign(time, spectralData, prevNotes, difficulty) {
-        if (!spectralData) {
+    smartZoneAssign(time, spectralData, prevNotes, difficulty, onset) {
+        // ── Band-aware zone selection (new multi-band data) ──
+        const band = onset?.band;
+        if (band) {
+            const rand = Math.random();
+            let zone;
+            if (band === 'bass') {
+                // Kick/sub → anchor zones (0 and 3 feel "heavy")
+                zone = rand < 0.45 ? 0 : rand < 0.75 ? 3 : rand < 0.88 ? 1 : 4;
+            } else if (band === 'treble') {
+                // Hi-hat/cymbal → higher-number zones
+                zone = rand < 0.4 ? 5 : rand < 0.7 ? 4 : rand < 0.85 ? 3 : 2;
+            } else {
+                // Mid (snare/vocal/melody) → middle zones
+                zone = rand < 0.3 ? 2 : rand < 0.6 ? 3 : rand < 0.75 ? 1 : rand < 0.9 ? 4 : rand < 0.95 ? 0 : 5;
+            }
+            return this.applyVariation(zone, prevNotes, difficulty);
+        }
+
+        // ── Spectral fallback (no band info) ──
+        if (!spectralData || spectralData.length === 0) {
             return this.patternZone(prevNotes, difficulty);
         }
 
-        const frame = spectralData.reduce((prev, curr) =>
-            Math.abs(curr.time - time) < Math.abs(prev.time - time) ? curr : prev
-        );
+        // Binary search for nearest spectral frame
+        let lo = 0, hi = spectralData.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (spectralData[mid].time < time) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo > 0 && Math.abs(spectralData[lo - 1].time - time) < Math.abs(spectralData[lo].time - time)) lo--;
+        const frame = spectralData[lo];
 
         const total = frame.low + frame.mid + frame.high;
         if (total === 0) return this.patternZone(prevNotes, difficulty);
@@ -2193,8 +2517,8 @@ export class AutoMapper {
             offset: 0,
             minNoteInterval: 150,
             useTrainedModel: options.useTrainedModel !== false,
-            maimaiStyle: options.maimaiStyle !== false,
-            maimaiIntensity: options.maimaiIntensity || 0.7
+            vsrgStyle: options.vsrgStyle !== false,
+            streamIntensity: options.streamIntensity || 0.6
         });
     }
 

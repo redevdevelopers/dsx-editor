@@ -1,4 +1,4 @@
-import { AddNoteCommand, DeleteNoteCommand, MoveNoteCommand } from './commandManager.js';
+import { AddNoteCommand, DeleteNoteCommand, MoveNoteCommand, CompoundCommand } from './commandManager.js';
 import { WaveformRenderer } from './waveformRenderer.js'; // Import WaveformRenderer
 export function Timeline(options) {
     this._chartData = options.chartData;
@@ -12,6 +12,13 @@ export function Timeline(options) {
     this.commandManager = options.commandManager;
     this.audioBuffer = options.audioBuffer;
     this.selectionManager = options.selectionManager; // NEW: Add selection manager// Added for debugging
+    this.onDeleteSelected = options.onDeleteSelected; // Bug 2 fix: bulk delete from keyboard
+
+    // Bug 16 fix: store bound refs once so addEventListener/removeEventListener use the same reference
+    this._boundTimelineMove = this.onTimelinePointerMove.bind(this);
+    this._boundTimelineUp   = this.onTimelinePointerUp.bind(this);
+    this._boundNoteMove     = this.onNotePointerMove.bind(this);
+    this._boundNoteUp       = this.onNotePointerUp.bind(this);
     // Get initial background color from timeline container's computed style
     const timelineContainerStyle = getComputedStyle(this.parent);
     const bgColor = timelineContainerStyle.backgroundColor;
@@ -577,15 +584,15 @@ Timeline.prototype.onTimelinePointerDown = function (event) {
     if (event.button === 0) { // Left-click only for dragging timeline
         this.isDraggingTimeline = true;
         this.lastPointerX = event.clientX;
-        this.app.view.addEventListener('pointermove', this.onTimelinePointerMove.bind(this));
-        this.app.view.addEventListener('pointerup', this.onTimelinePointerUp.bind(this));
+        this.app.view.addEventListener('pointermove', this._boundTimelineMove);
+        this.app.view.addEventListener('pointerup', this._boundTimelineUp);
     }
 };
 
 Timeline.prototype.onTimelinePointerUp = function () {
     this.isDraggingTimeline = false;
-    this.app.view.removeEventListener('pointermove', this.onTimelinePointerMove.bind(this));
-    this.app.view.removeEventListener('pointerup', this.onTimelinePointerUp.bind(this));
+    this.app.view.removeEventListener('pointermove', this._boundTimelineMove);
+    this.app.view.removeEventListener('pointerup', this._boundTimelineUp);
 };
 
 Timeline.prototype.onTimelinePointerMove = function (event) {
@@ -713,8 +720,19 @@ Timeline.prototype.onNotePointerDown = function (event, note, noteGraphic) {
     if (shouldStartDrag) {
         this.isDragging = true;
         this.wasDragging = false;
-        this.app.view.addEventListener('pointermove', this.onNotePointerMove.bind(this));
-        this.app.view.addEventListener('pointerup', this.onNotePointerUp.bind(this));
+
+        // Bug 3 fix: snapshot every selected note's start position before dragging.
+        // We'll push a single CompoundCommand on pointerup instead of one per mousemove.
+        const notesToMove = this.selectionManager
+            ? this.selectionManager.getSelection()
+            : (this.selectedNote ? [this.selectedNote] : []);
+        this._dragStartPositions = new Map();
+        notesToMove.forEach(note => {
+            this._dragStartPositions.set(note, { time: note.time, zone: note.zone });
+        });
+
+        this.app.view.addEventListener('pointermove', this._boundNoteMove);
+        this.app.view.addEventListener('pointerup', this._boundNoteUp);
     } else {
         // Only redraw if we're multi-selecting (not dragging)
         this.dirtyFlags.notes = true;
@@ -738,7 +756,7 @@ Timeline.prototype.onNotePointerMove = function (event) {
         const deltaTime = newTime - this.selectedNote.time;
         const deltaZone = newZone - this.selectedNote.zone;
 
-        // Only execute if position actually changed
+        // Only move if position actually changed
         if (deltaTime !== 0 || deltaZone !== 0) {
             this.wasDragging = true;
 
@@ -753,28 +771,13 @@ Timeline.prototype.onNotePointerMove = function (event) {
                 return newNoteZone < 0 || newNoteZone > 5;
             });
 
-            // If any note would go out of bounds, don't move any notes
-            if (wouldGoOutOfBounds) {
-                return;
-            }
+            if (wouldGoOutOfBounds) return;
 
-            // Move all selected notes by the same delta
+            // Bug 3 fix: directly mutate positions without going through commandManager.
+            // A single CompoundCommand is pushed in onNotePointerUp instead.
             notesToMove.forEach(note => {
-                const oldTime = note.time;
-                const oldZone = note.zone;
-                const newNoteTime = oldTime + deltaTime;
-                const newNoteZone = oldZone + deltaZone;
-
-                if (note.time !== newNoteTime || note.zone !== newNoteZone) {
-                    this.commandManager.execute(new MoveNoteCommand(
-                        this._chartData,
-                        note,
-                        oldTime,
-                        oldZone,
-                        newNoteTime,
-                        newNoteZone
-                    ));
-                }
+                note.time = Math.max(0, note.time + deltaTime);
+                note.zone = Math.max(0, Math.min(5, note.zone + deltaZone));
             });
 
             // Mark notes as dirty and throttle redraw during drag
@@ -790,12 +793,53 @@ Timeline.prototype.onNotePointerMove = function (event) {
 
 Timeline.prototype.onNotePointerUp = function () {
     this.isDragging = false;
-    this.app.view.removeEventListener('pointermove', this.onNotePointerMove.bind(this));
-    this.app.view.removeEventListener('pointerup', this.onNotePointerUp.bind(this));
+    this.app.view.removeEventListener('pointermove', this._boundNoteMove);
+    this.app.view.removeEventListener('pointerup', this._boundNoteUp);
+
+    // Bug 3 fix: push a single CompoundCommand covering the entire drag.
+    // One Ctrl+Z undoes the whole drag, not individual pixels.
+    if (this.wasDragging && this._dragStartPositions && this._dragStartPositions.size > 0) {
+        const moveCommands = [];
+        this._dragStartPositions.forEach((start, note) => {
+            if (note.time !== start.time || note.zone !== start.zone) {
+                // Create command that records start -> current, but skip execute()
+                // since the note is already at the new position visually.
+                const cmd = new MoveNoteCommand(
+                    this._chartData,
+                    note,
+                    start.time,
+                    start.zone,
+                    note.time,
+                    note.zone
+                );
+                // Override execute so it does NOT re-apply the move (already done)
+                cmd.execute = () => {
+                    note.time = cmd.newTime;
+                    note.zone = cmd.newZone;
+                    cmd.chartData.raw.notes.sort((a, b) => a.time - b.time);
+                };
+                moveCommands.push(cmd);
+            }
+        });
+        this._dragStartPositions = null;
+
+        if (moveCommands.length > 0) {
+            // Push to history without calling execute() again
+            const compound = new CompoundCommand(moveCommands);
+            if (this.commandManager.currentIndex < this.commandManager.history.length - 1) {
+                this.commandManager.history = this.commandManager.history.slice(0, this.commandManager.currentIndex + 1);
+            }
+            this.commandManager.history.push(compound);
+            this.commandManager.currentIndex++;
+            if (this.commandManager.autoSaveManager) {
+                this.commandManager.autoSaveManager.markUnsaved();
+            }
+        }
+    }
+
     this._chartData.raw.notes.sort((a, b) => a.time - b.time); // Re-sort after moving
     this.dirtyFlags.notes = true;
     this.throttledRedraw();
-    // Do not reset lastClickTime here, it's handled in onNotePointerDown for double-click detection
 };
 
 Timeline.prototype.onHoldResizeMove = function(event) {

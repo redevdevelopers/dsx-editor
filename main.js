@@ -3,6 +3,11 @@ const path = require('path');
 const fs = require('fs').promises; // Use the promise-based version of fs
 const AutoUpdater = require('./autoUpdater');
 
+// ── V8 / GPU flags must be set BEFORE app.whenReady() ──────────────────────
+// Setting these inside whenReady() is too late — V8 heap is already initialised.
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 let updater = null;
 
 function createWindow() {
@@ -534,13 +539,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    // Reduce GPU load for weaker systems
-    app.commandLine.appendSwitch('disable-gpu-vsync');
-    app.commandLine.appendSwitch('disable-software-rasterizer');
-    app.commandLine.appendSwitch('disable-gpu-compositing'); // NEW: Reduce GPU load
-    app.commandLine.appendSwitch('num-raster-threads', '2'); // NEW: Limit threads
-    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096'); // Reduced from 8096
-    app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
     // Register IPC handlers before creating window
     ipcMain.handle('dialog:openFile', handleFileOpen);

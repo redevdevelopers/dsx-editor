@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DreamSync Studio 6 — Concept</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;user-select:none}
+:root{
+  --bg1:#1e1e1e;--bg2:#252526;--bg3:#2d2d30;--bg4:#323233;--bg5:#3e3e42;
+  --border:#3e3e42;--text:#cccccc;--text2:#969696;
+  --accent:#1177bb;--accent-dark:#0e639c;--accent-bright:#4fc3f7;
+  --success:#4ec9b0;--warn:#ce9178;--err:#f48771;
+  --hdr:48px;--tb:40px;--sb:28px;--ico:48px;--side:280px;--tl:200px;
+  --z0:#c084fc;--z1:#60a5fa;--z2:#34d399;--z3:#fbbf24;--z4:#f87171;--z5:#f472b6;
+}
+html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg1);color:var(--text);font-family:'Exo 2',sans-serif;font-size:13px}
+#app{display:grid;grid-template-areas:"hdr hdr hdr""tb tb tb""ico side main""statbar statbar statbar";grid-template-rows:var(--hdr) var(--tb) 1fr var(--sb);grid-template-columns:var(--ico) var(--side) 1fr;width:100vw;height:100vh}
+
+/* HEADER */
+header{grid-area:hdr;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.logo{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.logo-icon{width:22px;height:22px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;letter-spacing:-0.5px}
+.hdr-actions{display:flex;gap:8px;align-items:center}
+.btn{padding:5px 12px;border-radius:4px;border:none;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:500;transition:all .15s;display:flex;align-items:center;gap:5px}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid transparent}
+.btn-ghost:hover{background:var(--bg5);color:var(--text);border-color:var(--border)}
+.btn-primary{background:var(--accent-dark);color:#fff}
+.btn-primary:hover{background:var(--accent)}
+
+/* TOOLBAR */
+#toolbar{grid-area:tb;background:var(--bg4);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:4px;overflow-x:auto;overflow-y:hidden}
+.tg{display:flex;gap:3px;padding:0 8px;border-right:1px solid var(--border);align-items:center}
+.tg:last-child{border-right:none;margin-left:auto}
+.tb-btn{padding:4px 8px;border-radius:3px;background:transparent;border:none;color:var(--text2);font-family:'Exo 2',sans-serif;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap}
+.tb-btn:hover{background:var(--bg5);color:var(--text)}
+.tb-btn.active{background:rgba(17,119,187,0.2);color:var(--accent-bright)}
+.tb-btn svg{width:14px;height:14px;flex-shrink:0}
+.tb-sep{width:1px;height:20px;background:var(--border)}
+.tb-badge{padding:2px 7px;border-radius:3px;font-size:10px;font-weight:600;background:rgba(17,119,187,0.15);border:1px solid rgba(17,119,187,0.3);color:var(--accent-bright)}
+
+/* ICONBAR */
+#iconbar{grid-area:ico;background:#333;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px;overflow-y:auto}
+.ico-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--text2);cursor:pointer;border-radius:0;position:relative;transition:all .15s}
+.ico-btn:hover{background:var(--bg5);color:var(--text)}
+.ico-btn.active{color:var(--accent-bright);background:var(--bg2)}
+.ico-btn.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+.ico-sep{width:28px;height:1px;background:var(--border);margin:4px 0}
+.ico-spacer{flex:1}
+
+/* SIDEBAR */
+#sidebar{grid-area:side;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.panel{border-bottom:1px solid var(--border)}
+.panel-hdr{padding:7px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text2)}
+.panel-hdr:hover{background:rgba(255,255,255,0.03)}
+.panel-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.field-label{font-size:10px;color:var(--text2);margin-bottom:3px;letter-spacing:0.04em;text-transform:uppercase}
+.field-input{width:100%;background:var(--bg1);border:1px solid var(--border);border-radius:3px;padding:4px 8px;color:var(--text);font-family:'Exo 2',sans-serif;font-size:12px;outline:none;transition:border-color .15s}
+.field-input:focus{border-color:var(--accent)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.diff-row{display:flex;gap:3px}
+.diff-btn{flex:1;padding:3px 0;border-radius:3px;font-size:10px;font-weight:600;text-align:center;border:1px solid var(--border);color:var(--text2);cursor:pointer;background:transparent;transition:all .15s}
+.diff-btn.on{background:rgba(17,119,187,0.2);border-color:var(--accent);color:var(--accent-bright)}
+.note-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.note-btn{padding:5px 4px;border-radius:3px;font-size:9px;font-weight:600;text-align:center;cursor:pointer;border:1px solid var(--border);color:var(--text2);background:transparent;transition:all .15s;letter-spacing:0.05em}
+.note-btn:hover{border-color:var(--text2);color:var(--text)}
+.note-btn.on{color:#fff}
+.nb-tap.on{background:rgba(96,165,250,0.2);border-color:#60a5fa}
+.nb-hold.on{background:rgba(192,132,252,0.2);border-color:#c084fc}
+.nb-slide.on{background:rgba(52,211,153,0.2);border-color:#34d399}
+.nb-flick.on{background:rgba(251,191,36,0.2);border-color:#fbbf24}
+.nb-trace.on{background:rgba(244,114,182,0.2);border-color:#f472b6}
+.nb-mine.on{background:rgba(248,113,113,0.2);border-color:#f87171}
+.snap-row{display:flex;gap:3px}
+.snap-btn{flex:1;padding:3px 0;border-radius:3px;font-size:10px;font-weight:500;text-align:center;border:1px solid var(--border);color:var(--text2);cursor:pointer;background:transparent;transition:all .15s}
+.snap-btn.on{background:rgba(17,119,187,0.2);border-color:var(--accent);color:var(--accent-bright)}
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.stat-card{background:var(--bg1);border:1px solid var(--border);border-radius:4px;padding:7px;text-align:center}
+.stat-val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--accent-bright)}
+.stat-key{font-size:9px;color:var(--text2);margin-top:2px;text-transform:uppercase;letter-spacing:0.06em}
+.bpm-item{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:var(--bg1);border-radius:3px;border:1px solid var(--border)}
+.bpm-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent-bright)}
+.bpm-time{font-size:10px;color:var(--text2)}
+.bpm-item.active{border-color:rgba(17,119,187,0.4);background:rgba(17,119,187,0.08)}
+.add-btn{width:100%;padding:4px;border-radius:3px;background:rgba(17,119,187,0.1);border:1px solid rgba(17,119,187,0.25);color:var(--accent-bright);font-family:'Exo 2',sans-serif;font-size:11px;cursor:pointer;transition:all .15s}
+.add-btn:hover{background:rgba(17,119,187,0.2)}
+
+/* MAIN */
+#main{grid-area:main;display:grid;grid-template-rows:1fr var(--tl);overflow:hidden;background:var(--bg1)}
+#gamefield{background:#000;overflow:hidden;position:relative}
+#timeline{background:var(--bg2);border-top:1px solid var(--border);overflow:hidden;position:relative}
+#gf-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+#tl-canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.area-label{position:absolute;top:6px;left:10px;font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.15);pointer-events:none;z-index:2}
+
+/* STATUSBAR */
+#statbar{grid-area:statbar;background:var(--accent-dark);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 40px;font-size:11px;font-weight:500;position:relative}
+.sb-settings{position:absolute;left:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#fff;cursor:pointer;padding:2px;border-radius:3px;display:flex;align-items:center}
+.sb-settings:hover{background:rgba(255,255,255,0.1)}
+.sb-left,.sb-right{display:flex;gap:14px;align-items:center}
+.sb-center{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;overflow:hidden}
+.sb-item{white-space:nowrap}
+.sb-item span{opacity:0.9}
+.sc-item{display:flex;align-items:center;gap:3px;white-space:nowrap;font-size:10px}
+kbd{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;font-family:'Exo 2',sans-serif}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">DSX</div>
+    DreamSync Studio 6
+  </div>
+  <div class="hdr-actions">
+    <button class="btn btn-ghost">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      AI Generate
+    </button>
+    <button class="btn btn-ghost">Import</button>
+    <button class="btn btn-primary">Export</button>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <div class="tg">
+    <button class="tb-btn" onclick="newChart()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      New
+    </button>
+    <button class="tb-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-2.18c.07-.44.18-.88.18-1.35C18 2.54 15.73 1 13.5 1c-1.32 0-2.51.58-3.36 1.5L9 3.67l-1.14-1.17C6.99 1.58 5.8 1 4.5 1 2.27 1 0 2.54 0 4.65 0 7 2.94 9 7.5 13.5L9 15l1.5-1.5C15.06 9 18 7 18 4.65c0-.45-.09-.89-.18-1.32z"/></svg>
+      Open
+    </button>
+    <button class="tb-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+      Save
+    </button>
+  </div>
+  <div class="tg">
+    <button class="tb-btn" id="undoBtn" onclick="undo()">↩ Undo</button>
+    <button class="tb-btn" id="redoBtn" onclick="redo()">↪ Redo</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn">Cut</button>
+    <button class="tb-btn">Copy</button>
+    <button class="tb-btn">Paste</button>
+  </div>
+  <div class="tg">
+    <button class="tb-btn active" title="Play/Pause" id="playToolBtn" onclick="togglePlay()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      Play
+    </button>
+    <button class="tb-btn" title="Stop" onclick="stopPlay()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+      Stop
+    </button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="recBtn" title="Record" style="color:#f48771">
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+      Record
+    </button>
+  </div>
+  <div class="tg">
+    <span style="font-size:10px;color:var(--text2);margin-right:4px">BPM</span>
+    <input style="width:52px;background:var(--bg1);border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;outline:none" value="180" />
+    <div class="tb-sep"></div>
+    <span style="font-size:10px;color:var(--text2);margin-right:4px">Time</span>
+    <span id="tb-time" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-bright);min-width:68px">1:24.340</span>
+  </div>
+  <div class="tg" style="margin-left:auto">
+    <div class="tb-badge">AUTO-SAVE ON</div>
+  </div>
+</div>
+
+<!-- ICONBAR -->
+<div id="iconbar">
+  <button class="ico-btn active" title="Select (V)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 0L0 14.4 5.88 12 8.16 18 10.56 17.04 8.28 11.04 14.4 9.6z"/></svg>
+  </button>
+  <button class="ico-btn" title="Draw (B)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+  </button>
+  <button class="ico-btn" title="Erase (E)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.14 3c-.51 0-1.02.2-1.41.59L2.59 14.73c-.78.77-.78 2.04 0 2.83L5.03 20h7.66l8.72-8.72c.79-.78.79-2.05 0-2.83l-4.86-4.86c-.39-.39-.9-.59-1.41-.59zm-3.37 14H5.03l-1.28-1.29 3.08-3.08 4.94 4.37z"/></svg>
+  </button>
+  <div class="ico-sep"></div>
+  <button class="ico-btn" title="Box Select (Shift)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h2V3c-1.1 0-2 .9-2 2zm0 8h2v-2H3v2zm4 8h2v-2H7v2zM3 9h2V7H3v2zm10-6h-2v2h2V3zm6 0v2h2c0-1.1-.9-2-2-2zM5 21v-2H3c0 1.1.9 2 2 2zm-2-4h2v-2H3v2zM9 3H7v2h2V3zm2 18h2v-2h-2v2zm8-8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2zm0-12h2V7h-2v2zm0 8h2v-2h-2v2zm-4 4h2v-2h-2v2zm0-16h2V3h-2v2z"/></svg>
+  </button>
+  <button class="ico-btn" title="Snap (S)" id="snapBtn" onclick="this.classList.toggle('active')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm10 0h-6c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM10 14H4c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-2c0-1.1-.9-2-2-2z"/></svg>
+  </button>
+  <button class="ico-btn" title="Marker (M)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+  </button>
+  <div class="ico-sep"></div>
+  <div class="ico-spacer"></div>
+  <button class="ico-btn" title="Settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+
+  <div class="panel">
+    <div class="panel-hdr">Chart Info <span style="font-size:10px">▾</span></div>
+    <div class="panel-body">
+      <div><div class="field-label">Title</div><input class="field-input" value="Neon Cascade"/></div>
+      <div><div class="field-label">Artist</div><input class="field-input" value="HYPER//FLUX"/></div>
+      <div class="field-row">
+        <div><div class="field-label">BPM</div><input class="field-input" value="180"/></div>
+        <div><div class="field-label">Offset (ms)</div><input class="field-input" value="-12"/></div>
+      </div>
+      <div>
+        <div class="field-label">Difficulty</div>
+        <div class="diff-row">
+          <div class="diff-btn">EZ</div><div class="diff-btn">NM</div>
+          <div class="diff-btn on">HD</div><div class="diff-btn">IN</div><div class="diff-btn">AT</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div><div class="field-label">Level</div><input class="field-input" value="15"/></div>
+        <div><div class="field-label">Designer</div><input class="field-input" value="YourName"/></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">Note Type <span style="font-size:10px">▾</span></div>
+    <div class="panel-body">
+      <div class="note-grid">
+        <div class="note-btn nb-tap on">TAP</div>
+        <div class="note-btn nb-hold">HOLD</div>
+        <div class="note-btn nb-slide">SLIDE</div>
+        <div class="note-btn nb-flick">FLICK</div>
+        <div class="note-btn nb-trace">TRACE</div>
+        <div class="note-btn nb-mine">MINE</div>
+      </div>
+      <div>
+        <div class="field-label">Snap Grid</div>
+        <div class="snap-row">
+          <div class="snap-btn">1/1</div><div class="snap-btn">1/2</div>
+          <div class="snap-btn on">1/4</div><div class="snap-btn">1/8</div><div class="snap-btn">1/16</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">Statistics <span style="font-size:10px">▾</span></div>
+    <div class="panel-body">
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-val">248</div><div class="stat-key">Notes</div></div>
+        <div class="stat-card"><div class="stat-val">32</div><div class="stat-key">Holds</div></div>
+        <div class="stat-card"><div class="stat-val">3:24</div><div class="stat-key">Length</div></div>
+        <div class="stat-card"><div class="stat-val">5.8</div><div class="stat-key">NPS</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">BPM Changes <span style="font-size:10px">▾</span></div>
+    <div class="panel-body">
+      <div class="bpm-item active"><span class="bpm-val">180</span><span class="bpm-time">0:00.000</span></div>
+      <div class="bpm-item"><span class="bpm-val">200</span><span class="bpm-time">1:12.000</span></div>
+      <div class="bpm-item"><span class="bpm-val">220</span><span class="bpm-time">2:30.500</span></div>
+      <button class="add-btn">+ Add BPM Change</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">Audio <span style="font-size:10px">▾</span></div>
+    <div class="panel-body">
+      <div style="background:var(--bg1);border:1px solid var(--border);border-radius:3px;padding:8px;display:flex;align-items:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--accent-bright)"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        <div><div style="font-size:11px;font-weight:500">neon_cascade.mp3</div><div style="font-size:10px;color:var(--text2)">3:24 · 320kbps</div></div>
+      </div>
+      <div class="field-row">
+        <div><div class="field-label">Latency (ms)</div><input class="field-input" value="0"/></div>
+        <div><div class="field-label">Volume</div><input class="field-input" value="80"/></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MAIN: Gamefield (top) + Timeline (bottom) -->
+<div id="main">
+  <div id="gamefield">
+    <div class="area-label">Gameplay Preview</div>
+    <canvas id="gf-canvas"></canvas>
+  </div>
+  <div id="timeline">
+    <div class="area-label">Timeline</div>
+    <canvas id="tl-canvas"></canvas>
+  </div>
+</div>
+
+<!-- STATUSBAR -->
+<div id="statbar">
+  <button class="sb-settings">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58C4.84 11.36 4.8 11.69 4.8 12s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+  </button>
+  <div class="sb-left">
+    <div class="sb-item"><span id="sb-notes">248 notes</span></div>
+    <div class="sb-item"><span id="sb-time">1:24</span></div>
+    <div class="sb-item"><span>180 BPM</span></div>
+    <div class="sb-item"><span style="color:var(--success)">Auto-save: On</span></div>
+  </div>
+  <div class="sb-center">
+    <div class="sc-item"><kbd>LClick</kbd> Place/Hold</div>
+    <div class="sc-item"><kbd>RClick</kbd> Delete</div>
+    <div class="sc-item"><kbd>Space</kbd> Play/Pause</div>
+    <div class="sc-item"><kbd>←</kbd><kbd>→</kbd> Seek</div>
+    <div class="sc-item"><kbd>M</kbd> Marker</div>
+    <div class="sc-item"><kbd>Shift</kbd> Hold/Select</div>
+    <div class="sc-item"><kbd>S</kbd> Snap</div>
+    <div class="sc-item"><kbd>Ctrl+Z</kbd> Undo</div>
+    <div class="sc-item"><kbd>Ctrl+Y</kbd> Redo</div>
+    <div class="sc-item"><kbd>Del</kbd> Delete</div>
+    <div class="sc-item"><kbd>F11</kbd> Fullscreen</div>
+  </div>
+  <div class="sb-right">
+    <div class="sb-item"><span id="sb-fps" style="font-family:'JetBrains Mono',monospace;min-width:80px">FPS: 60 / 60</span></div>
+    <div class="sb-item"><span id="sb-zoom">100%</span></div>
+    <div class="sb-item"><span>Snap: 1/4</span></div>
+    <div class="sb-item"><span style="color:var(--success)">Ready</span></div>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+const ZONES=6;
+const ZONE_COLORS=['#c084fc','#60a5fa','#34d399','#fbbf24','#f87171','#f472b6'];
+const ZONE_DIM=['rgba(192,132,252,0.35)','rgba(96,165,250,0.35)','rgba(52,211,153,0.35)','rgba(251,191,36,0.35)','rgba(248,113,113,0.35)','rgba(244,114,182,0.35)'];
+
+let playing=false,currentTime=84340,BPM=180,offset=0,ZOOM=0.18;
+const seed=n=>Math.sin(n*9301+49297)*0.5+0.5;
+const notes=[];
+for(let i=0;i<200;i++){
+  const t=3000+i*1090+seed(i)*300;
+  const zone=Math.floor(seed(i+1000)*6);
+  const dur=seed(i+500)>0.68?200+seed(i+300)*800:0;
+  const type=dur>0?'hold':(seed(i+600)>0.82?'flick':'tap');
+  notes.push({t,zone,dur,type});
+}
+
+const tlCanvas=document.getElementById('tl-canvas');
+const tlCtx=tlCanvas.getContext('2d');
+const gfCanvas=document.getElementById('gf-canvas');
+const gfCtx=gfCanvas.getContext('2d');
+
+function resize(){
+  const gf=document.getElementById('gamefield');
+  const tl=document.getElementById('timeline');
+  gfCanvas.width=gf.clientWidth; gfCanvas.height=gf.clientHeight;
+  tlCanvas.width=tl.clientWidth; tlCanvas.height=tl.clientHeight;
+}
+
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ── TIMELINE ──
+function drawTimeline(){
+  const W=tlCanvas.width,H=tlCanvas.height;
+  tlCtx.clearRect(0,0,W,H);
+  // bg
+  tlCtx.fillStyle='#1e1e1e';tlCtx.fillRect(0,0,W,H);
+  const zH=H/ZONES;
+  // zones
+  for(let z=0;z<ZONES;z++){
+    const y=z*zH;
+    if(z%2===0){tlCtx.fillStyle='rgba(255,255,255,0.015)';tlCtx.fillRect(0,y,W,zH);}
+    tlCtx.strokeStyle='rgba(255,255,255,0.06)';tlCtx.lineWidth=1;
+    tlCtx.beginPath();tlCtx.moveTo(0,y);tlCtx.lineTo(W,y);tlCtx.stroke();
+    tlCtx.fillStyle=ZONE_COLORS[z]+'44';
+    tlCtx.font='500 9px "Exo 2",sans-serif';
+    tlCtx.fillText('Z'+(z+1),4,y+13);
+  }
+  // beat grid
+  const mpb=60000/BPM;
+  let beat=Math.floor(offset/mpb)*mpb,bNum=Math.round(beat/mpb);
+  while(true){
+    const x=(beat-offset)*ZOOM; if(x>W)break;
+    const isMeasure=bNum%4===0;
+    tlCtx.strokeStyle=isMeasure?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.04)';
+    tlCtx.lineWidth=isMeasure?1:0.5;
+    tlCtx.beginPath();tlCtx.moveTo(x,0);tlCtx.lineTo(x,H);tlCtx.stroke();
+    if(isMeasure){
+      tlCtx.fillStyle='rgba(255,255,255,0.22)';
+      tlCtx.font='500 9px "JetBrains Mono",monospace';
+      tlCtx.fillText(Math.floor(bNum/4)+1,x+3,9);
+    }
+    beat+=mpb;bNum++;
+  }
+  // waveform
+  const waveTop=H*0.82;
+  tlCtx.save();tlCtx.beginPath();tlCtx.rect(0,waveTop,W,H-waveTop);tlCtx.clip();
+  const wg=tlCtx.createLinearGradient(0,waveTop,0,H);
+  wg.addColorStop(0,'rgba(17,119,187,0.3)');wg.addColorStop(1,'rgba(17,119,187,0.05)');
+  tlCtx.fillStyle=wg;tlCtx.beginPath();tlCtx.moveTo(0,H);
+  for(let x=0;x<W;x+=2){
+    const ms=x/ZOOM+offset;
+    const v=Math.sin(ms*0.003)*0.3+Math.sin(ms*0.007)*0.2+Math.sin(ms*0.014)*0.15;
+    tlCtx.lineTo(x,waveTop+(H-waveTop)*0.35-Math.abs(v)*H*0.12);
+  }
+  tlCtx.lineTo(W,H);tlCtx.closePath();tlCtx.fill();tlCtx.restore();
+  // notes
+  const PAD=2;
+  for(const n of notes){
+    const x=(n.t-offset)*ZOOM;
+    if(x<-80||x>W+80)continue;
+    const y=n.zone*zH+PAD,h=zH-PAD*2;
+    const col=ZONE_COLORS[n.zone];
+    if(n.dur>0){
+      const bw=n.dur*ZOOM;
+      const bg=tlCtx.createLinearGradient(x,0,x+bw,0);
+      bg.addColorStop(0,col+'cc');bg.addColorStop(1,col+'22');
+      tlCtx.fillStyle=bg;
+      rr(tlCtx,x,y+h*0.2,bw,h*0.6,2);tlCtx.fill();
+    }
+    tlCtx.save();
+    tlCtx.shadowColor=col;tlCtx.shadowBlur=10;
+    const nw=n.type==='flick'?18:12;
+    const ng=tlCtx.createLinearGradient(x-nw/2,y,x+nw/2,y+h);
+    ng.addColorStop(0,'#fff');ng.addColorStop(0.35,col);ng.addColorStop(1,col+'77');
+    tlCtx.fillStyle=ng;
+    rr(tlCtx,x-nw/2,y,nw,h,3);tlCtx.fill();
+    tlCtx.shadowBlur=0;tlCtx.restore();
+  }
+  // playhead
+  const px=(currentTime-offset)*ZOOM;
+  if(px>=0&&px<=W){
+    tlCtx.save();
+    tlCtx.shadowColor='#fff';tlCtx.shadowBlur=6;
+    tlCtx.strokeStyle='rgba(255,255,255,0.88)';tlCtx.lineWidth=1.5;
+    tlCtx.setLineDash([3,3]);
+    tlCtx.beginPath();tlCtx.moveTo(px,0);tlCtx.lineTo(px,H);tlCtx.stroke();
+    tlCtx.setLineDash([]);
+    tlCtx.fillStyle='#fff';
+    tlCtx.beginPath();tlCtx.moveTo(px-4,0);tlCtx.lineTo(px+4,0);tlCtx.lineTo(px,7);tlCtx.closePath();tlCtx.fill();
+    tlCtx.restore();
+  }
+}
+
+// ── GAMEFIELD ──
+const particles=[];
+function drawGamefield(){
+  const W=gfCanvas.width,H=gfCanvas.height;
+  gfCtx.clearRect(0,0,W,H);
+  const bg=gfCtx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#050810');bg.addColorStop(1,'#0d1117');
+  gfCtx.fillStyle=bg;gfCtx.fillRect(0,0,W,H);
+  const lW=W/ZONES,HIT=H*0.80,LA=1600;
+  // lanes
+  for(let z=0;z<ZONES;z++){
+    const lx=z*lW;
+    if(z%2===0){gfCtx.fillStyle='rgba(255,255,255,0.01)';gfCtx.fillRect(lx,0,lW,H);}
+    gfCtx.strokeStyle='rgba(255,255,255,0.06)';gfCtx.lineWidth=1;
+    gfCtx.beginPath();gfCtx.moveTo(lx,0);gfCtx.lineTo(lx,H);gfCtx.stroke();
+    gfCtx.fillStyle=ZONE_COLORS[z]+'55';
+    gfCtx.font='600 9px "Exo 2",sans-serif';
+    gfCtx.textAlign='center';
+    gfCtx.fillText('ZONE '+(z+1),lx+lW/2,H*0.06);
+  }
+  gfCtx.textAlign='left';
+  // hit line glow
+  const hlg=gfCtx.createLinearGradient(0,HIT-16,0,HIT+4);
+  hlg.addColorStop(0,'rgba(17,119,187,0)');
+  hlg.addColorStop(0.5,'rgba(79,195,247,0.3)');
+  hlg.addColorStop(1,'rgba(17,119,187,0)');
+  gfCtx.fillStyle=hlg;gfCtx.fillRect(0,HIT-16,W,20);
+  gfCtx.save();
+  gfCtx.shadowColor='rgba(79,195,247,0.8)';gfCtx.shadowBlur=12;
+  gfCtx.strokeStyle='rgba(255,255,255,0.6)';gfCtx.lineWidth=1.5;
+  gfCtx.beginPath();gfCtx.moveTo(0,HIT);gfCtx.lineTo(W,HIT);gfCtx.stroke();
+  gfCtx.shadowBlur=0;gfCtx.restore();
+  // receptors
+  for(let z=0;z<ZONES;z++){
+    const rx=z*lW+lW/2,col=ZONE_COLORS[z];
+    gfCtx.save();
+    gfCtx.shadowColor=col;gfCtx.shadowBlur=6;
+    gfCtx.strokeStyle=col+'bb';gfCtx.lineWidth=2;
+    gfCtx.beginPath();gfCtx.roundRect(rx-lW*0.38,HIT-6,lW*0.76,13,3);gfCtx.stroke();
+    gfCtx.restore();
+  }
+  // notes
+  for(const n of notes){
+    const dt=n.t-currentTime;
+    if(dt<-300||dt>LA)continue;
+    const y=HIT-(dt/LA)*HIT;
+    const lx=n.zone*lW,col=ZONE_COLORS[n.zone];
+    const nW=lW*0.76,nx=lx+(lW-nW)/2;
+    const alpha=Math.min(1,(dt+150)/200);
+    if(n.dur>0){
+      const endDt=dt-n.dur;
+      const endY=HIT-(endDt/LA)*HIT;
+      const ty=Math.max(0,Math.min(y,endY)),by=Math.min(HIT,Math.max(y,endY));
+      const tg=gfCtx.createLinearGradient(0,ty,0,by);
+      tg.addColorStop(0,col+'18');tg.addColorStop(1,col+'77');
+      gfCtx.fillStyle=tg;
+      gfCtx.fillRect(lx+lW*0.26,ty,lW*0.48,by-ty);
+    }
+    gfCtx.save();
+    gfCtx.globalAlpha=alpha;
+    gfCtx.shadowColor=col;gfCtx.shadowBlur=14;
+    const ng=gfCtx.createLinearGradient(nx,y-10,nx+nW,y);
+    ng.addColorStop(0,'#ffffff');ng.addColorStop(0.4,col);ng.addColorStop(1,col+'88');
+    gfCtx.fillStyle=ng;
+    gfCtx.beginPath();gfCtx.roundRect(nx,y-10,nW,10,3);gfCtx.fill();
+    if(n.type==='flick'){
+      gfCtx.fillStyle='#fff';gfCtx.font='bold 9px sans-serif';
+      gfCtx.textAlign='center';gfCtx.fillText('↑',lx+lW/2,y-13);gfCtx.textAlign='left';
+    }
+    gfCtx.restore();
+    if(playing&&Math.abs(dt)<100&&Math.random()<0.25){
+      for(let p=0;p<4;p++) particles.push({x:lx+lW/2,y:HIT,vx:(Math.random()-.5)*5,vy:-Math.random()*5-1,life:1,col,s:Math.random()*2.5+0.5});
+    }
+  }
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.18;p.life-=0.045;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    gfCtx.save();gfCtx.globalAlpha=p.life;
+    gfCtx.shadowColor=p.col;gfCtx.shadowBlur=5;
+    gfCtx.fillStyle=p.col;gfCtx.beginPath();gfCtx.arc(p.x,p.y,p.s,0,Math.PI*2);gfCtx.fill();
+    gfCtx.restore();
+  }
+  // dead zone overlay
+  gfCtx.fillStyle='rgba(0,0,0,0.5)';gfCtx.fillRect(0,HIT+2,W,H-HIT-2);
+}
+
+// ── PLAYBACK ──
+let playing_=false;
+function togglePlay(){
+  playing=!playing;
+  const btn=document.getElementById('playToolBtn');
+  btn.innerHTML=playing
+    ?`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pause`
+    :`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play`;
+}
+function stopPlay(){playing=false;currentTime=0;offset=0;document.getElementById('playToolBtn').innerHTML=`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play`;}
+function undo(){document.getElementById('undoBtn').style.color='var(--accent-bright)';setTimeout(()=>document.getElementById('undoBtn').style.color='',200);}
+function redo(){document.getElementById('redoBtn').style.color='var(--accent-bright)';setTimeout(()=>document.getElementById('redoBtn').style.color='',200);}
+function newChart(){}
+
+// timeline drag
+let dragX=null,dragOff=null;
+tlCanvas.addEventListener('pointerdown',e=>{dragX=e.clientX;dragOff=offset;tlCanvas.setPointerCapture(e.pointerId);});
+tlCanvas.addEventListener('pointermove',e=>{if(dragX!==null)offset=Math.max(0,dragOff-(e.clientX-dragX)/ZOOM);});
+tlCanvas.addEventListener('pointerup',()=>dragX=null);
+tlCanvas.addEventListener('wheel',e=>{e.preventDefault();offset=Math.max(0,offset+e.deltaY*6);},{passive:false});
+
+// chip interactive
+document.querySelectorAll('.diff-btn').forEach(b=>b.addEventListener('click',function(){this.closest('.diff-row').querySelectorAll('.diff-btn').forEach(x=>x.classList.remove('on'));this.classList.add('on');}));
+document.querySelectorAll('.note-btn').forEach(b=>b.addEventListener('click',function(){this.closest('.note-grid').querySelectorAll('.note-btn').forEach(x=>x.classList.remove('on'));this.classList.add('on');}));
+document.querySelectorAll('.snap-btn').forEach(b=>b.addEventListener('click',function(){this.closest('.snap-row').querySelectorAll('.snap-btn').forEach(x=>x.classList.remove('on'));this.classList.add('on');}));
+
+// RAF loop
+let fpsTick=0,lastFPS=performance.now(),frames=0,last=null;
+function loop(ts){
+  if(last){
+    const dt=ts-last;
+    if(playing){
+      currentTime+=dt;
+      const px=(currentTime-offset)*ZOOM;
+      if(px>tlCanvas.width*0.65)offset+=dt;
+      const tot=Math.round(currentTime);
+      const mm=Math.floor(tot/60000);
+      const ss=Math.floor((tot%60000)/1000).toString().padStart(2,'0');
+      const ms=Math.floor(tot%1000).toString().padStart(3,'0');
+      document.getElementById('tb-time').textContent=mm+':'+ss+'.'+ms;
+      document.getElementById('sb-time').textContent=mm+':'+ss;
+    }
+  }
+  last=ts;
+  frames++;
+  if(ts-lastFPS>=1000){
+    document.getElementById('sb-fps').textContent=`FPS: ${frames} / ${frames}`;
+    frames=0;lastFPS=ts;
+  }
+  drawTimeline();
+  drawGamefield();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize',()=>{resize();});
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();togglePlay();}
+});
+resize();
+const tlW=document.getElementById('timeline').clientWidth;
+offset=Math.max(0,currentTime-(tlW*0.35)/ZOOM);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

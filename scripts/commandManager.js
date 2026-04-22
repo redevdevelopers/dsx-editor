@@ -156,3 +156,79 @@ export class AddRecordedNotesCommand extends Command {
         // No need to sort after undoing as notes are removed. The remaining notes are already sorted.
     }
 }
+
+/**
+ * Executes and undoes an ordered list of Commands as a single atomic unit.
+ * One Ctrl+Z undoes all of them together.
+ */
+export class CompoundCommand extends Command {
+    constructor(commands) {
+        super();
+        this.commands = commands;
+    }
+
+    execute() {
+        this.commands.forEach(cmd => cmd.execute());
+    }
+
+    undo() {
+        // Undo in reverse order
+        for (let i = this.commands.length - 1; i >= 0; i--) {
+            this.commands[i].undo();
+        }
+    }
+}
+
+/**
+ * Adds an array of notes to the chart (used for paste). Fully undoable.
+ */
+export class BulkAddNotesCommand extends Command {
+    constructor(chartData, notes) {
+        super();
+        this.chartData = chartData;
+        this.notes = notes;
+    }
+
+    execute() {
+        this.chartData.raw.notes.push(...this.notes);
+        this.chartData.raw.notes.sort((a, b) => a.time - b.time);
+    }
+
+    undo() {
+        const noteSet = new Set(this.notes);
+        this.chartData.raw.notes = this.chartData.raw.notes.filter(n => !noteSet.has(n));
+    }
+}
+
+/**
+ * Removes an array of notes from the chart (used for bulk delete). Fully undoable.
+ */
+export class BulkDeleteNotesCommand extends Command {
+    constructor(chartData, notes) {
+        super();
+        this.chartData = chartData;
+        this.notes = notes;
+        // Snapshot original array for restore on undo
+        this.snapshotBefore = null;
+    }
+
+    execute() {
+        // Snapshot positions for clean undo
+        this.snapshotBefore = this.notes.map(note => ({
+            note,
+            index: this.chartData.raw.notes.indexOf(note)
+        })).filter(entry => entry.index > -1);
+
+        const noteSet = new Set(this.notes);
+        this.chartData.raw.notes = this.chartData.raw.notes.filter(n => !noteSet.has(n));
+    }
+
+    undo() {
+        if (!this.snapshotBefore) return;
+        // Re-insert at original positions
+        this.snapshotBefore.forEach(({ note }) => {
+            this.chartData.raw.notes.push(note);
+        });
+        this.chartData.raw.notes.sort((a, b) => a.time - b.time);
+    }
+}

@@ -101,14 +101,14 @@ export class AutoSaveManager {
 
             const jsonData = JSON.stringify(saveData);
 
+            // Secondary backup: read BEFORE overwriting primary so it holds the previous save
+            const previousData = localStorage.getItem(this.autoSaveKey);
+            if (previousData) {
+                localStorage.setItem(this.backupKey, previousData);
+            }
+
             // Primary save to localStorage
             localStorage.setItem(this.autoSaveKey, jsonData);
-
-            // Secondary backup (keep previous version)
-            const previousBackup = localStorage.getItem(this.autoSaveKey);
-            if (previousBackup) {
-                localStorage.setItem(this.backupKey, previousBackup);
-            }
 
             // File-based backup using Electron API (if available)
             if (window.electronAPI && window.electronAPI.saveBackup) {
@@ -248,6 +248,12 @@ export class AutoSaveManager {
 
             // Recreate ChartData instance with recovered data
             this.editor._chartData = new ChartData(recoveryData.chart);
+
+            // Bug 5 fix: sync the Timeline's internal reference to the new ChartData.
+            // Without this the timeline renders the old empty chart after recovery.
+            if (this.editor.timeline) {
+                this.editor.timeline._chartData = this.editor._chartData;
+            }
 
             this.editor.sessionMarkers = recoveryData.sessionMarkers || [];
 
